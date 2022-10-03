@@ -17,7 +17,7 @@ mesh.sf <- as_tibble(ncvar_get(mesh.nc, "nodexy_os")) %>%
 
 mesh.pts <- st_union(mesh.sf)
 
-gridRes <- 500
+gridRes <- 1000
 lice_grid <- st_bbox(mesh.pts) %>%
   st_make_grid(cellsize=c(gridRes, gridRes), what="centers") %>%
   st_sf(id=1:length(.)) %>%

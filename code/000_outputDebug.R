@@ -87,4 +87,6 @@ mvmt %>%
 
 mvmt %>%
   mutate(uploch=dX>0 & dY>0) %>%
-  ggplot(aes(-z, colour=uploch)) + geom_density()
+  ggplot(aes(-z, colour=uploch)) + 
+  xlim(-20, 0) +
+  geom_density()

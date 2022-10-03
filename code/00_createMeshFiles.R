@@ -123,3 +123,5 @@ str(ncvar_get(mesh.nc, "nodexy_os"))
 head(ncvar_get(mesh.nc, "trinodes"))
 head(ncvar_get(mesh.nc, "nbe"))
 ncvar_get(mesh.nc, "siglay")
+
+nc_close(mesh.nc)
