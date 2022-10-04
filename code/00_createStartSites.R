@@ -6,22 +6,17 @@
 
 # setup -------------------------------------------------------------------
 
-library(tidyverse); library(ncdf4); library(sf)
+library(tidyverse); library(sf); library(glue)
+theme_set(theme_classic())
 
-hiRes.dir <- "W:/common/sa04ts-temp/linnhe7/"
-hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf/")
+mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 
-mesh.nc <- nc_open("data/linnhe_mesh.nc")
-mesh.sf <- as_tibble(ncvar_get(mesh.nc, "nodexy_os")) %>%
-  st_as_sf(coords=c("V1", "V2"), crs=27700)
-
-mesh.pts <- st_union(mesh.sf)
 
 gridRes <- 1000
-lice_grid <- st_bbox(mesh.pts) %>%
+lice_grid <- st_bbox(mesh.fp) %>%
   st_make_grid(cellsize=c(gridRes, gridRes), what="centers") %>%
   st_sf(id=1:length(.)) %>%
-  mutate(inMesh=st_is_within_distance(., mesh.pts, 1000, sparse=F)[,1]) %>%
+  mutate(inMesh=st_within(., mesh.fp, sparse=F)[,1]) %>%
   filter(inMesh)
 
 st_coordinates(lice_grid) %>% as_tibble() %>%
@@ -29,3 +24,9 @@ st_coordinates(lice_grid) %>% as_tibble() %>%
   select(i, X, Y, depth) %>%
   write_tsv(paste0("data/linnhe_start_", gridRes, "m_grid.tsv"),
             col_names=F)
+
+ggplot(lice_grid) + 
+  geom_sf(data=mesh.fp, fill="cadetblue") + 
+  geom_sf(size=0.5) +
+  ggtitle(glue("Start sites: {gridRes}m grid ({nrow(lice_grid)} pts)"))
+ggsave(glue("figs/startSites_{gridRes}m_grid.png"), width=5, height=6)

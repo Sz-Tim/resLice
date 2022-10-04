@@ -10,6 +10,7 @@ library(tidyverse); library(ncdf4); library(sf)
 
 hiRes.dir <- "W:/common/sa04ts-temp/linnhe7/"
 hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf/")
+hiRes_5min.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf_5min/")
 
 
 
@@ -123,3 +124,29 @@ lice_grid <- st_bbox(mesh.hull) %>%
   st_sf(id=1:length(.)) %>%
   mutate(inMesh=st_is_within_distance(., mesh.sf, 0.005, sparse=F)[,1]) %>%
   filter(inMesh)
+
+
+
+# Hi-res
+day2_5m <- nc_open(dir(hiRes_5min.dir, "0002.nc", full.names=T))
+
+ncvar_get(day2_5m, "time")
+# These still have 24 slots per file. So the easiest way to deal with this is
+# probably (unfortunately) post-hoc processing to adjust the recorded times. 
+# This is somewhat annoying since the days and hours are used in the outputs
+# and in the filenames, and so it will require some work to get things right.
+# I'll also need to adjust the recording intervals to reflect this difference.
+times <- numeric()
+for(i in seq_along(dir(hiRes_5min.dir))) {
+  nc.i <- nc_open(dir(hiRes_5min.dir, full.names=T)[i])
+  times <- c(times, ncvar_get(nc.i, "time")*24*60*60)
+  nc_close(nc.i)
+}
+times <- as.POSIXct(times, origin="1858-11-17")
+times - lag(times)
+
+
+hiRes <- (0:255)*337.5
+loRes <- (0:23)*3600
+
+

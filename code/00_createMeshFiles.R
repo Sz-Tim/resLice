@@ -16,10 +16,9 @@ library(tidyverse); library(ncdf4); library(sf)
 
 hiRes.dir <- "W:/common/sa04ts-temp/linnhe7/"
 hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf/")
+hiRes_5min.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf_5min/")
 
 day2 <- nc_open(dir(hiRes_1h.dir, "0002.nc", full.names=T))
-westcoms <- st_read("../../WeStCOMS/data/WeStCOMS2_mesh.gpkg")
-
 
 
 
@@ -37,6 +36,7 @@ nc <- list(
   siglay=ncvar_get(day2, "siglay")[1,], 
   siglev=ncvar_get(day2, "siglev")[1,]
 )
+nc_close(day2)
 nc$boundaryNodesAll <- which(rowSums(nc$nbe==0) > 0)
 nc$boundaryNodesOpen <- nc$boundaryNodesAll # not used, but must be loaded...
 nc$uvnode_os <- as_tibble(nc$uvnode) %>%
@@ -102,14 +102,17 @@ mesh.sf <- tibble(i=1:nrow(nc$uvnode_os),
                   trinode_2=nc$trinodes[,2],
                   trinode_3=nc$trinodes[,3]) %>%
   rowwise() %>%
-  mutate(coords=list(nc$nodexy_os[c(trinode_1, trinode_2, trinode_3, trinode_1),])) %>%
+  mutate(coords=list(nc$nodexy_os[c(trinode_1, trinode_2, trinode_3, trinode_1),]),
+         geom=list(st_polygon(list(coords)))) %>%
   ungroup %>%
-  mutate(geometry=list(st_polygon(coords))) %>%
-  st_as_sf(crs=27700)
-mesh.sf_ <- mesh.sf %>%
-  mutate(area=st_area()) %>%
+  st_as_sf(crs=27700) %>%
+  mutate(area=st_area(.)) %>%
   select(i, area, depth, trinode_1, trinode_2, trinode_3, geom)
-write_sf(mesh.sf_, "data/linnhe_mesh.gpkg")
+write_sf(mesh.sf, "data/linnhe_mesh.gpkg")
+
+mesh.footprint <- mesh.sf %>% st_union
+write_sf(mesh.footprint, "data/linnhe_mesh_footprint.gpkg")
+
 
 
 
