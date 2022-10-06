@@ -12,13 +12,22 @@
 
 # setup -------------------------------------------------------------------
 
-library(tidyverse); library(ncdf4); library(sf)
+library(tidyverse); library(ncdf4); library(sf); library(glue)
 
+domain <- c("linnhe", "westcoms")[2]
+
+westcoms.dir <- "D:/hydroOut/WeStCOMS2/Archive/netcdf_2021/"
 hiRes.dir <- "W:/common/sa04ts-temp/linnhe7/"
 hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf/")
 hiRes_5min.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf_5min/")
 
-day2 <- nc_open(dir(hiRes_1h.dir, "0002.nc", full.names=T))
+if(domain=="linnhe") {
+  day2 <- nc_open(dir(hiRes_1h.dir, "0002.nc", full.names=T))
+  open_elems <- read_csv("data/linnhe_mesh_openBoundaryElems.csv")
+} else if(domain=="westcoms") {
+  day2 <- nc_open(dir(westcoms.dir, "20211102", full.names=T))
+  open_elems <- read_csv("data/westcoms2-linnhe_mesh_openBoundaryElems.csv")
+}
 
 
 
@@ -38,7 +47,7 @@ nc <- list(
 )
 nc_close(day2)
 nc$boundaryNodesAll <- which(rowSums(nc$nbe==0) > 0)
-nc$boundaryNodesOpen <- nc$boundaryNodesAll # not used, but must be loaded...
+nc$boundaryNodesOpen <- sort(unique(unlist(open_elems %>% select(starts_with("trinode")))))
 nc$uvnode_os <- as_tibble(nc$uvnode) %>%
   st_as_sf(coords=c("V1", "V2"), crs=4326) %>%
   st_transform(27700) %>% st_coordinates
@@ -57,7 +66,7 @@ three <- ncdim_def("three", "three", 1:3)
 siglayers <- ncdim_def("siglayers", "sigma layers", 1:length(nc$siglay))
 siglevels <- ncdim_def("siglevels", "sigma levels", 1:length(nc$siglev))
 bnode <- ncdim_def("bnode", "boundary", 1:length(nc$boundaryNodesAll))
-obcnode <- ncdim_def("obcnode", "boundary", 1:length(nc$boundaryNodesAll))
+obcnode <- ncdim_def("obcnode", "boundary", 1:length(nc$boundaryNodesOpen))
 
 
 
@@ -83,7 +92,7 @@ mesh.vars <- list(
 
 # create mesh.nc ----------------------------------------------------------
 
-mesh.nc <- nc_create("data/linnhe_mesh.nc", mesh.vars)
+mesh.nc <- nc_create(glue("data/{domain}_mesh.nc"), mesh.vars)
 iwalk(names(mesh.vars), ~ncvar_put(mesh.nc, .x, nc[[.x]]))
 nc_close(mesh.nc)
 
@@ -118,13 +127,14 @@ write_sf(mesh.footprint, "data/linnhe_mesh_footprint.gpkg")
 
 # confirm -----------------------------------------------------------------
 
-mesh.nc <- nc_open("data/linnhe_mesh.nc")
+mesh.nc <- nc_open(glue("data/{domain}_mesh.nc"))
 mesh.nc
 str(ncvar_get(mesh.nc, "uvnode"))
 str(ncvar_get(mesh.nc, "uvnode_os"))
 str(ncvar_get(mesh.nc, "nodexy_os"))
 head(ncvar_get(mesh.nc, "trinodes"))
 head(ncvar_get(mesh.nc, "nbe"))
+head(ncvar_get(mesh.nc, "boundaryNodesOpen"))
 ncvar_get(mesh.nc, "siglay")
 
 nc_close(mesh.nc)
