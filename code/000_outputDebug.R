@@ -9,10 +9,12 @@
 # setup -------------------------------------------------------------------
 
 library(tidyverse); library(ncdf4); library(sf); library(glue); library(lubridate)
-theme_set(theme_bw())
+theme_set(theme_classic())
+
+hydro <- c("hiRes"="linnhe7", "loRes"="westcoms")[2]
 
 # directories
-out.dir <- "../sealice_runs/00_test/out_debug/linnhe7_1hr/"
+out.dir <- glue("../sealice_runs/00_test/out_debug/{hydro}_1hr/")
 
 # files
 # mesh.sf <- st_read("data/linnhe_mesh.gpkg")
@@ -22,9 +24,9 @@ mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 #                            col_names=c("sink", "swim", "float", "total")) %>%
 #   mutate(total=sink+swim+float,
 #          i=row_number())
-mvmt <- read_delim(glue("{out.dir}movementFile.dat"))
-mvmt.df <- bind_rows(mvmt %>% mutate(res="1h"),
-                     mvmt2 %>% mutate(res="5min"))
+# mvmt <- read_delim(glue("{out.dir}movementFile.dat"))
+# mvmt.df <- bind_rows(mvmt %>% mutate(res="1h"),
+#                      mvmt2 %>% mutate(res="5min"))
 
 
 # start sites -------------------------------------------------------------
@@ -58,31 +60,33 @@ mvmt.df <- bind_rows(mvmt %>% mutate(res="1h"),
 # movement ----------------------------------------------------------------
 
 # part.sample <- sample(unique(mvmt$ID), 1)
-# part.sample <- sample(filter(mvmt, startDate=="20211101")$ID, 50)
+# part.sample <- sample(filter(mvmt, startDate=="20211101")$ID, 500)
 # 
-# mvmt %>% 
-#   filter(ID %in% part.sample) %>%
+# mvmt %>%
 #   st_as_sf(coords=c("x", "y"), crs=27700) %>%
-#   mutate(uploch=dX>0 & dY>0,
-#          upward=dZ<0) %>%
-#   ggplot() + 
+#   st_crop(st_bbox(mesh.fp)) %>%
+#   group_by(ID) %>%
+#   summarise(do_union=FALSE) %>%
+#   st_cast("LINESTRING") %>%
+#   ggplot() +
 #   geom_sf(data=mesh.fp, fill="grey70") +
-#   geom_sf(size=0.5, aes(colour=density, group=ID)) + 
+#   geom_sf(alpha=0.5) +
 #   scale_colour_viridis_c()
 # 
-# mvmt %>% 
-#   filter(ID %in% part.sample) %>%
+# mvmt %>%
+#   # filter(ID %in% part.sample) %>%
 #   st_as_sf(coords=c("x", "y"), crs=27700) %>%
+#   st_crop(st_bbox(mesh.fp)) %>%
 #   mutate(uploch=dX>0 & dY>0,
 #          upward=dZ<0) %>%
-#   ggplot() + 
+#   ggplot() +
 #   geom_sf(data=mesh.fp, fill="grey70") +
 #   geom_sf(size=0.5, aes(colour=uploch, alpha=uploch)) +
 #   scale_alpha_manual(values=c(0.2, 1))
-# 
-# mvmt %>% 
-#   filter(ID %in% part.sample) %>%
-#   ggplot(aes(x, y, colour=-z, group=ID)) + 
+# # 
+# mvmt %>%
+#   # filter(ID %in% part.sample) %>%
+#   ggplot(aes(x, y, colour=-z, group=ID)) +
 #   geom_path() + scale_colour_viridis_c()
 # 
 # mvmt %>% 
@@ -186,11 +190,11 @@ loc.df <- map_dfr(loc.f,
                            dateTime=as_datetime(paste0(str_sub(.x,11,-5), "-", hour),
                                                 format="%Y%m%d-%H")))
 
-loc.df <- bind_rows(loc.df %>% mutate(res="1h"),
-                    loc.df2 %>% mutate(res="5min"))
-ggplot(loc.df, aes(x, y, group=ID, colour=zTot)) + 
-  geom_path() +
-  scale_colour_viridis_c()
+# loc.df <- bind_rows(loc.df %>% mutate(res="1h"),
+#                     loc.df2 %>% mutate(res="5min"))
+# ggplot(loc.df, aes(x, y, group=ID, colour=zTot)) + 
+#   geom_path() +
+#   scale_colour_viridis_c()
 
 
 # 
@@ -221,18 +225,33 @@ ggplot(loc.df, aes(x, y, group=ID, colour=zTot)) +
 #   scale_fill_viridis_c() +
 #   facet_wrap(~hour)
 
+n_particles <- n_distinct(loc.df$ID)
+part.sample <- sample(unique(loc.df$ID), min(n_particles/2, 1e4))
+days <- unique(loc.df$date)[3:5]
+hours <- unique(loc.df$hour)
+interp <- 8  # interpolation frames
+
+p <- loc.df %>%
+  filter(status==2) %>%
+  ggplot(aes(x,y, alpha=density, colour=depth)) + 
+  geom_point(size=0.1, shape=1) + 
+  scale_colour_viridis_c(direction=-1, option="D", limits=c(0,20), na.value="#000033") +
+  ggtitle(paste0(names(hydro), ", 1 hour"))
+ggsave(glue("figs/part_locs_{hydro}_1h.png"), p, width=6, height=6, dpi=900)
 
 library(gganimate)
 anim <- loc.df %>%
-  # filter(date=="2021-11-05") %>%
-  # filter(hour < 4) %>%
-  filter(ID %% 10 == 0) %>%
+  filter(status==2) %>%
+  filter(date %in% days) %>%
+  filter(hour %in% hours) %>%
+  filter(ID %in% part.sample) %>%
   st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_crop(st_bbox(mesh.fp)) %>%
   ggplot() + 
   geom_sf(data=mesh.fp, fill="grey10", colour=NA) +
-  geom_sf(aes(colour=depth, alpha=density), size=0.5) + 
-  scale_colour_viridis_c(direction=-1, end=0.9, option="D") +
-  transition_states(dateTime, wrap=F, transition_length=100, state_length=1) +
-  ggtitle(paste0("Hi-res, 1 hour. {closest_state}"))
-anim_save("locs_test.gif", anim, nframes=8*24*5, fps=10, 
-          width=7, height=6, res=300, units="in")
+  geom_sf(aes(colour=depth, alpha=density, group=ID), size=0.5) + 
+  scale_colour_viridis_c(direction=-1, option="D", limits=c(0,20), na.value="#000033") +
+  transition_states(dateTime, wrap=F, transition_length=1, state_length=0) +
+  ggtitle(paste0(names(hydro), ", 1 hour. {closest_state}"))
+anim_save(glue("figs/tracks_{hydro}_1h.gif"), anim, nframes=interp*length(hours)*length(days), 
+          fps=20, width=7, height=6, res=300, units="in")
