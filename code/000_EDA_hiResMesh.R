@@ -5,11 +5,11 @@
 # This script is just to get a handle on the high resolution mesh
 
 
-library(tidyverse); library(ncdf4); library(sf)
+library(tidyverse); library(ncdf4); library(sf); library(WeStCOMS)
 
 
-hiRes.dir <- "W:/common/sa04ts-temp/linnhe7/"
-hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf/")
+hiRes.dir <- "D:/hydroOut/linnhe7/"
+hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc/netcdf_2021/")
 hiRes_5min.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf_5min/")
 
 
