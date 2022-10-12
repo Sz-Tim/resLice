@@ -19,7 +19,7 @@ source("code/00_fn.R")
 # define parameters -------------------------------------------------------
 
 overwrite_jar <- T
-cores <- 4
+cores <- 12
 
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
@@ -37,14 +37,14 @@ dirs <- switch(get_os(),
 
 sim.i <- expand_grid(mesh=c("WeStCOMS2", "linnhe7"),
                      timeRes=c("1h"),
-                     liceSpeed=c(0, 0.0001, 0.0005, 0.001)) %>%
+                     liceSpeed=c(0, 0.0005)) %>%
   mutate(i=str_pad(row_number(), 2, "left", "0"),
          meshFile=if_else(mesh=="WeStCOMS2", 
                           glue("{dirs$mesh}WeStCOMS2_linnhe_mesh.nc"),
                           glue("{dirs$mesh}linnhe_mesh.nc")),
          hydroDir=if_else(mesh=="WeStCOMS2",
                           glue("{dirs$hydro.westcoms}"),
-                          glue("{dirs$hydro.linnhe}linnhe7_tides_met_tsobc_mf")),
+                          glue("{dirs$hydro.linnhe}linnhe7_tides_met_tsobc")),
          hydroDir=if_else(timeRes=="5min", glue("{hydroDir}_5min"), hydroDir),
          outDir=glue("{dirs$out}/sim_{i}/"),
          nDays=if_else(timeRes=="1h", 7, 85),
@@ -70,7 +70,7 @@ properties.ls <- map(
                           mesh1=paste0(normalizePath(sim.i$meshFile[.x]), sep),
                           location=str_to_lower(str_sub(sim.i$mesh[.x], 1, -2)),
                           minchVersion=str_sub(sim.i$mesh[.x], -1, -1),
-                          sitefile="..\\..\\data\\linnhe_start_1000m_grid.tsv",
+                          sitefile="..\\..\\data\\linnhe_start_500m_corran_20km.tsv",
                           numberOfDays=sim.i$nDays[.x],
                           dt=sim.i$dt[.x],
                           releaseInterval=sim.i$releaseInterval[.x],
@@ -79,7 +79,8 @@ properties.ls <- map(
                           vertSwimSpeedMean=sim.i$liceSpeed[.x],
                           vertSwimSpeedStd=sim.i$liceSpeed[.x]/5,
                           sinkingRateMean=sim.i$liceSpeed[.x],
-                          sinkingRateStd=sim.i$liceSpeed[.x]/5))
+                          sinkingRateStd=sim.i$liceSpeed[.x]/5,
+                          recordMovement=F))
 walk(sim_seq, 
      ~cat(properties.ls[[.x]] %>% 
             str_replace_all("\\\\", "\\\\\\\\") %>%

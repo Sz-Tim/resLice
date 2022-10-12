@@ -15,7 +15,7 @@ dirs <- switch(get_os(),
 
 mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Passive", "Slow", "Medium", "Fast")))
+  mutate(liceSpeedF=factor(liceSpeed, labels=c("Passive", "Medium")))
 
 loc.df <- read_csv("out/00_processed/locations.csv") %>%
   filter(status==2) %>%
@@ -30,7 +30,7 @@ loc.df <- loc.df %>%
   filter(date %in% days,
          hour %in% hours,
          ID %in% part.sample)
-interp <- 8
+interp <- 4
 anim <- loc.df %>%
   ggplot() + 
   geom_sf(data=mesh.fp, fill="grey10", colour=NA) +
@@ -41,7 +41,7 @@ anim <- loc.df %>%
   ggtitle( "{closest_state}")
 anim_save(glue("figs/tracks_AllPart.gif"), 
           anim, nframes=interp*length(hours)*length(days),
-          fps=24, width=10, height=6, res=300, units="in")
+          fps=24, width=6, height=6, res=300, units="in")
 
 
 loc.ls <- loc.df %>%
