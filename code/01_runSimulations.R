@@ -19,7 +19,7 @@ source("code/00_fn.R")
 # define parameters -------------------------------------------------------
 
 overwrite_jar <- T
-cores <- 12
+cores <- 8
 
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
@@ -47,7 +47,7 @@ sim.i <- expand_grid(mesh=c("WeStCOMS2", "linnhe7"),
                           glue("{dirs$hydro.linnhe}linnhe7_tides_met_tsobc")),
          hydroDir=if_else(timeRes=="5min", glue("{hydroDir}_5min"), hydroDir),
          outDir=glue("{dirs$out}/sim_{i}/"),
-         nDays=if_else(timeRes=="1h", 7, 85),
+         nDays=if_else(timeRes=="1h", 5, 85),
          dt=if_else(timeRes=="1h", 3600, 337.5),
          releaseInterval=if_else(timeRes=="1h", 3, 32),
          viabletime=if_else(timeRes=="1h", 12, 128),
@@ -74,6 +74,7 @@ properties.ls <- map(
                           numberOfDays=sim.i$nDays[.x],
                           dt=sim.i$dt[.x],
                           releaseInterval=sim.i$releaseInterval[.x],
+                          nparts=2,
                           viabletime=sim.i$viabletime[.x],
                           maxParticleAge=sim.i$maxParticleAge[.x],
                           vertSwimSpeedMean=sim.i$liceSpeed[.x],
