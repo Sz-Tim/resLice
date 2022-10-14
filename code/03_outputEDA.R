@@ -58,6 +58,11 @@ col_NSEW <- scale_colour_gradientn(colours=cmr$infinity, limits=c(-pi, pi),
 col_downloch <- scale_colour_gradient2("Direction", limits=c(-1,1), 
                                        breaks=c(-1,1), 
                                        labels=c("uploch", "downloch"))
+fill_downloch <- scale_fill_gradient2("Direction", midpoint=0.5, 
+                                      breaks=c(0, 1), labels=c("downloch", "uploch"),
+                                      low=scales::muted("blue"), 
+                                      mid="grey90",
+                                      high=scales::muted("red"))
 
 
 
@@ -68,6 +73,11 @@ ggplot(mesh.sf, aes(fill=bearing)) +
   fill_NSEW + 
   facet_grid(.~mesh)
 ggsave("figs/mesh_bearing.png", width=6, height=4, dpi=300)
+ggplot(mesh.sf, aes(fill=depth)) + 
+  geom_sf(colour=NA) + 
+  scale_fill_viridis_c() +
+  facet_grid(.~mesh)
+ggsave("figs/mesh_depth.png", width=6, height=4, dpi=300)
 
 
 
@@ -80,6 +90,7 @@ loc.df %>% filter(status==2) %>%
   geom_density() +
   xlim(0, 25) +
   facet_grid(liceSpeedF~.)
+ggsave("figs/vertDist.png", width=5, height=6, dpi=300)
 
 loc.df %>% filter(status==2) %>%
   ggplot(aes(depth, colour=liceSpeedF)) +
@@ -168,27 +179,17 @@ loc.df %>%
 # total distance ----------------------------------------------------------
 
 loc.df %>% 
-  group_by(ID, sim, mesh, liceSpeedF) %>%
-  arrange(age) %>%
-  mutate(xy=sqrt((x-lag(x))^2 + (y-lag(y))^2)) %>%
-  filter(!is.na(xy)) %>%
-  mutate(xy_cumul=cumsum(xy)) %>%
   filter(status==2) %>%
+  group_by(ID, sim, mesh, liceSpeedF) %>%
   slice_tail(n=1) %>%
-  ggplot(aes(xy_cumul/age, linetype=mesh, colour=liceSpeedF, group=sim)) + 
+  ggplot(aes(xyTot/age, linetype=mesh, colour=liceSpeedF, group=sim)) + 
   geom_density() + 
   scale_colour_viridis_d() +
   scale_x_log10("Mean xy hourly displacement (m/h)")
 ggsave("figs/xy_mean_log.png", width=6, height=4, dpi=300)
 loc.df %>% 
   group_by(ID, sim, mesh, liceSpeedF) %>%
-  arrange(age) %>%
-  mutate(xy=sqrt((x-lag(x))^2 + (y-lag(y))^2)) %>%
-  filter(!is.na(xy)) %>%
-  mutate(xy_cumul=cumsum(xy)) %>%
-  filter(status==2) %>%
-  slice_tail(n=1) %>%
-  ggplot(aes(xy_cumul/age, linetype=mesh, colour=liceSpeedF, group=sim)) + 
+  ggplot(aes(xyTot/age, linetype=mesh, colour=liceSpeedF, group=sim)) + 
   geom_density() + 
   scale_colour_viridis_d() +
   scale_x_continuous("Mean xy hourly displacement (m/h)")
@@ -197,22 +198,22 @@ ggsave("figs/xy_mean.png", width=6, height=4, dpi=300)
 loc.df %>%
   group_by(ID, sim, mesh, liceSpeedF) %>%
   arrange(age) %>%
+  mutate(dZ=depth-lag(depth)) %>%
   filter(status==2) %>%
-  slice_tail(n=1) %>%
-  ggplot(aes(zTot/age, linetype=mesh, colour=liceSpeedF, group=sim)) + 
+  ggplot(aes(abs(dZ), linetype=mesh, colour=liceSpeedF, group=sim)) + 
   geom_density() + 
   scale_colour_viridis_d() +
-  scale_x_log10("Mean z hourly displacement (m)")
+  scale_x_continuous("Hourly depth displacement (abs(m))", trans="log1p")
 ggsave("figs/z_mean_log.png", width=6, height=4, dpi=300)
 loc.df %>%
   group_by(ID, sim, mesh, liceSpeedF) %>%
   arrange(age) %>%
+  mutate(dZ=depth-lag(depth)) %>%
   filter(status==2) %>%
-  slice_tail(n=1) %>%
-  ggplot(aes(zTot/age, linetype=mesh, colour=liceSpeedF, group=sim)) + 
+  ggplot(aes(dZ, linetype=mesh, colour=liceSpeedF, group=sim)) + 
   geom_density() + 
   scale_colour_viridis_d() +
-  scale_x_continuous("Mean z hourly displacement (m)")
+  scale_x_continuous("Hourly depth displacement (m)")
 ggsave("figs/z_mean.png", width=6, height=4, dpi=300)
 
 
@@ -378,16 +379,16 @@ p <- ggplot(meshDir.sum) +
   scale_fill_viridis_c() +
   facet_grid(.~mesh)
 ggsave("figs/density_map.png", p, width=8, height=5, dpi=300)
-p <- ggplot(meshDir.sum) +
+p <- ggplot(meshDir.sum %>% filter(N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch)) + 
-  scale_fill_gradient2(midpoint=0.5, low=scales::muted("blue"), high=scales::muted("red")) +
+  fill_downloch +
   facet_grid(.~mesh)
 ggsave("figs/prUploch_map.png", p, width=8, height=5, dpi=300)
-p <- ggplot(meshDir.sum) +
+p <- ggplot(meshDir.sum %>% filter(N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch, alpha=lnDens_m3)) + 
-  scale_fill_gradient2(midpoint=0.5, low=scales::muted("blue"), high=scales::muted("red")) +
+  fill_downloch +
   facet_grid(.~mesh)
 ggsave("figs/prUploch_map_ALT.png", p, width=8, height=5, dpi=300)
 
@@ -395,7 +396,10 @@ ggsave("figs/prUploch_map_ALT.png", p, width=8, height=5, dpi=300)
 meshDir.deep <- left_join(mesh.sf,
                           velocity.df %>%
                             filter(liceSpeedF=="Medium") %>%
-                            mutate(deep=if_else(depth_m1<5, "0-5m", "5+m")) %>%
+                            mutate(deep=case_when(depth_m1 <= 2 ~ "0-2",
+                                                  between(depth_m1, 2, 5) ~ "2-5",
+                                                  between(depth_m1, 5, 10) ~ "5-10",
+                                                  depth_m1 > 10 ~ ">10")) %>%
                             group_by(mesh, elem, deep) %>%
                             summarise(N=n(),
                                       totDens=sum(density),
@@ -403,25 +407,27 @@ meshDir.deep <- left_join(mesh.sf,
                             ungroup %>% rename(i=elem),
                           by=c("mesh", "i")) %>%
   mutate(N=replace_na(N, 0),
-         lnDens_m3=if_else(deep=="0-5m", 
-                           log(totDens/(area*pmin(depth, 5))),
-                           log(totDens/(area*(pmax(depth-5, 1))))))
+         lnDens_m3=case_when(deep=="0-2" ~ log(totDens/(area*pmin(depth, 2))),
+                             deep=="2-5" ~ log(totDens/(area*pmin(depth-2, 3))),
+                             deep=="5-10" ~ log(totDens/(area*pmin(depth-5, 5))),
+                             deep==">10" ~ log(totDens/(area*pmin(depth-10, 1)))),
+         deep=factor(deep, levels=c("0-2", "2-5", "5-10", ">10")))
 
 p <- ggplot(meshDir.deep %>% filter(!is.na(deep))) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=lnDens_m3)) + 
-  scale_fill_gradient2() +
+  scale_fill_viridis_c() +
   facet_grid(deep~mesh)
-ggsave("figs/density_map_5m.png", p, width=8, height=7, dpi=300)
-p <- ggplot(meshDir.deep %>% filter(!is.na(deep))) +
+ggsave("figs/density_map_depthStrat.png", p, width=8, height=14, dpi=300)
+p <- ggplot(meshDir.deep %>% filter(!is.na(deep), N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch)) + 
-  scale_fill_gradient2(midpoint=0.5, low=scales::muted("blue"), high=scales::muted("red")) +
+  fill_downloch +
   facet_grid(deep~mesh)
-ggsave("figs/prUploch_map_5m.png", p, width=8, height=7, dpi=300)
-p <- ggplot(meshDir.deep %>% filter(!is.na(deep))) +
+ggsave("figs/prUploch_map_depthStrat.png", p, width=8, height=14, dpi=300)
+p <- ggplot(meshDir.deep %>% filter(!is.na(deep), N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch, alpha=lnDens_m3)) + 
-  scale_fill_gradient2(midpoint=0.5, low=scales::muted("blue"), high=scales::muted("red")) +
+  fill_downloch +
   facet_grid(deep~mesh)
-ggsave("figs/prUploch_map_5m_ALT.png", p, width=8, height=7, dpi=300)
+ggsave("figs/prUploch_map_depthStrat_ALT.png", p, width=8, height=14, dpi=300)

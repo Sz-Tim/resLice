@@ -21,16 +21,16 @@ loc.df <- read_csv("out/00_processed/locations.csv") %>%
   filter(status==2) %>%
   select(mesh, liceSpeedF, sim, date, hour, dateTime, ID, x, y, depth, density) %>%
   mutate(liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)))
-days <- unique(loc.df$date)[5:7]
+days <- unique(loc.df$date)[4:5]
 hours <- unique(loc.df$hour)
 particles <- unique(filter(loc.df, date %in% days & hour %in% hours)$ID)
-part.sample <- sample(particles, min(length(particles), 1e6))
+part.sample <- sample(particles, min(length(particles), 1e5))
 
 loc.df <- loc.df %>%
   filter(date %in% days,
          hour %in% hours,
          ID %in% part.sample)
-interp <- 4
+interp <- 8
 anim <- loc.df %>%
   ggplot() + 
   geom_sf(data=mesh.fp, fill="grey10", colour=NA) +
@@ -39,9 +39,9 @@ anim <- loc.df %>%
   transition_states(dateTime, wrap=F, transition_length=1, state_length=0) +
   facet_grid(mesh~liceSpeedF) +
   ggtitle( "{closest_state}")
-anim_save(glue("figs/tracks_AllPart.gif"), 
+anim_save(glue("figs/tracks_AllPart_new.gif"), 
           anim, nframes=interp*length(hours)*length(days),
-          fps=24, width=6, height=6, res=300, units="in")
+          fps=32, width=6, height=6, res=300, units="in")
 
 
 loc.ls <- loc.df %>%
@@ -63,7 +63,7 @@ foreach(i=1:nrow(sim_i),
         .export=c("sim_i", "mesh.fp", "loc.ls", "days", "hours"),
         .errorhandling="pass") %dopar% {
           
-  interp <- 4  # interpolation frames
+  interp <- 8  # interpolation frames
   theme_set(theme_classic())
   
   # anim <- loc.ls[[i]] %>%
@@ -85,7 +85,7 @@ foreach(i=1:nrow(sim_i),
                    ". {closest_state}"))
   anim_save(glue("figs/tracks_sim{str_pad(i,2,'left','0')}_10kPart.gif"), 
             anim, nframes=interp*length(hours)*length(days),
-            fps=20, width=7, height=6, res=300, units="in")
+            fps=32, width=7, height=6, res=300, units="in")
   paste("Finished", i)
 }
 stopCluster(cl)
