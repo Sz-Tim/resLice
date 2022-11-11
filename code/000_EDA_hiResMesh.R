@@ -5,12 +5,15 @@
 # This script is just to get a handle on the high resolution mesh
 
 
-library(tidyverse); library(ncdf4); library(sf); library(WeStCOMS)
+library(tidyverse); library(ncdf4); library(sf); library(WeStCOMS); library(glue)
 
+mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 
 hiRes.dir <- "D:/hydroOut/linnhe7/"
-hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc/netcdf_2021/")
-hiRes_5min.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf_5min/")
+hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_riv/netcdf_2021/")
+hiRes_5min.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_riv_5min/netcdf_2021/")
+wc.dir <- "D:/hydroOut/WeStCOMS2/"
+wc_1h.dir <- paste0(wc.dir, "Archive/netcdf_2021/")
 
 
 
@@ -45,14 +48,14 @@ load_WeStCOMS <- function(type="node", nc_file, make_sf=FALSE,
     hour <- hour %>% 
       add_column(zeta=c(ncvar_get(ncin,"zeta")),
                  short_wave=c(ncvar_get(ncin,"short_wave")),
-                 net_heat_flux=c(ncvar_get(ncin,"net_heat_flux")),
-                 precip=c(ncvar_get(ncin,"precip")),
-                 evap=c(ncvar_get(ncin,"evap")))
+                 net_heat_flux=c(ncvar_get(ncin,"net_heat_flux")))#,
+                 # precip=c(ncvar_get(ncin,"precip")),
+                 # evap=c(ncvar_get(ncin,"evap")))
   } else {
     hour <- hour %>%
       add_column(uwind_speed=c(ncvar_get(ncin,"uwind_speed")),
                  vwind_speed=c(ncvar_get(ncin,"vwind_speed")),
-                 tauc=c(ncvar_get(ncin,"tauc")),
+                 # tauc=c(ncvar_get(ncin,"tauc")),
                  ua=c(ncvar_get(ncin,"ua")),
                  va=c(ncvar_get(ncin,"va")),
                  velocity2D=sqrt(ua^2 + va^2),
@@ -67,8 +70,8 @@ load_WeStCOMS <- function(type="node", nc_file, make_sf=FALSE,
     full_join(., mesh, by="i") %>%
     mutate(levelDepth=-h*(sigLevVals[sigLevel]))
   if(isNode) {
-    sigmaLevel <- sigmaLevel %>%
-      add_column(omega=c(ncvar_get(ncin, "omega")))
+    # sigmaLevel <- sigmaLevel %>%
+    #   add_column(omega=c(ncvar_get(ncin, "omega")))
   } else {
     # check variables... not sure anything is measured here
   }
@@ -113,8 +116,11 @@ load_WeStCOMS <- function(type="node", nc_file, make_sf=FALSE,
 
 
 day2 <- load_WeStCOMS("node", 
-                      dir(hiRes_1h.dir, "0002.nc", full.names=T), 
+                      dir(hiRes_1h.dir, "20211102", full.names=T), 
                       make_sf=T, n_hours=24, n_sigLay=30, n_sigLev=31)
+day2.c <- load_WeStCOMS("elem", 
+                        dir(hiRes_1h.dir, "20211102", full.names=T), 
+                        make_sf=T, n_hours=24, n_sigLay=30, n_sigLev=31)
 mesh.sf <- st_union(day2$mesh)
 mesh.hull <- st_convex_hull(mesh.sf)
 
@@ -128,7 +134,7 @@ lice_grid <- st_bbox(mesh.hull) %>%
 
 
 # Hi-res
-day2_5m <- nc_open(dir(hiRes_5min.dir, "0002.nc", full.names=T))
+day2_5m <- nc_open(dir(hiRes_5min.dir, "20211102", full.names=T))
 
 ncvar_get(day2_5m, "time")
 # These still have 24 slots per file. So the easiest way to deal with this is
@@ -150,3 +156,169 @@ hiRes <- (0:255)*337.5
 loRes <- (0:23)*3600
 
 
+
+
+
+
+load_WeStCOMS("node", 
+              dir(hiRes_1h.dir, "20211102", full.names=T), 
+              make_sf=T, n_hours=24, n_sigLay=30, n_sigLev=31)$sigLay %>%
+  filter(sigLayer==1) %>% 
+  st_set_crs(4326) %>%
+  st_transform(27700) %>%
+  group_by(hour) %>% 
+  group_split() %>% 
+  imap(~st_write(.x, glue("temp/linnhe_1h_nodeLay1_{str_pad(.y, 2, 'left', 0)}.gpkg")))
+
+load_WeStCOMS("elem", 
+              dir(hiRes_1h.dir, "20211102", full.names=T), 
+              make_sf=T, n_hours=24, n_sigLay=30, n_sigLev=31)$sigLay %>%
+  filter(sigLayer==1) %>%
+  st_set_crs(4326) %>%
+  st_transform(27700) %>%
+  group_by(hour) %>% 
+  group_split() %>% 
+  imap(~st_write(.x, glue("temp/linnhe_1h_elemLay1_{str_pad(.y, 2, 'left', 0)}.gpkg")))
+
+load_WeStCOMS("node", 
+              dir(hiRes_1h.dir, "20211102", full.names=T), 
+              make_sf=T, n_hours=24, n_sigLay=30, n_sigLev=31)$hour %>%
+  st_set_crs(4326) %>%
+  st_transform(27700) %>%
+  group_by(hour) %>% 
+  group_split() %>% 
+  imap(~st_write(.x, glue("temp/linnhe_1h_nodeHour_{str_pad(.y, 2, 'left', 0)}.gpkg")))
+
+
+
+
+
+load_WeStCOMS("node", 
+              dir(wc_1h.dir, "20211102", full.names=T), 
+              make_sf=T, n_hours=24, n_sigLay=10, n_sigLev=11)$sigLay %>%
+  filter(sigLayer==1) %>% 
+  st_set_crs(4326) %>%
+  st_transform(27700) %>%
+  filter(st_within(., mesh.fp, sparse=F)[,1]) %>%
+  group_by(hour) %>% 
+  group_split() %>% 
+  imap(~st_write(.x, glue("temp/WeStCOMS2_1h_nodeLay1_{str_pad(.y, 2, 'left', 0)}.gpkg")))
+
+load_WeStCOMS("elem", 
+              dir(wc_1h.dir, "20211102", full.names=T), 
+              make_sf=T, n_hours=24, n_sigLay=10, n_sigLev=11)$sigLay %>%
+  filter(sigLayer==1) %>%
+  st_set_crs(4326) %>%
+  st_transform(27700) %>%
+  filter(st_within(., mesh.fp, sparse=F)[,1]) %>%
+  group_by(hour) %>% 
+  group_split() %>% 
+  imap(~st_write(.x, glue("temp/WeStCOMS2_1h_elemLay1_{str_pad(.y, 2, 'left', 0)}.gpkg")))
+
+load_WeStCOMS("node", 
+              dir(wc_1h.dir, "20211102", full.names=T), 
+              make_sf=T, n_hours=24, n_sigLay=10, n_sigLev=11)$hour %>%
+  st_set_crs(4326) %>%
+  st_transform(27700) %>%
+  filter(st_within(., mesh.fp, sparse=F)[,1]) %>%
+  group_by(hour) %>% 
+  group_split() %>% 
+  imap(~st_write(.x, glue("temp/WeStCOMS2_1h_nodeHour_{str_pad(.y, 2, 'left', 0)}.gpkg")))
+
+
+
+
+
+library(gganimate)
+theme_set(theme_classic())
+
+
+salinity.df <- map_dfr(dir("temp", "nodeLay1"), 
+                       ~st_read(glue("temp/{.x}")) %>%
+                         mutate(mesh=str_split_fixed(.x, "_1h_", 2)[,1])) %>%
+  mutate(x=st_coordinates(.)[,1], 
+         y=st_coordinates(.)[,2]) %>% 
+  st_drop_geometry()
+interp <- 1
+anim <- salinity.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, fill="grey20") +
+  geom_point(aes(x, y, colour=salinity, size=area)) + 
+  scale_colour_distiller("Surface\nsalinity", type="seq", palette="Blues") + 
+  scale_radius(range=c(0.1, 2.5), guide="none") +
+  transition_states(hour, wrap=F, transition_length=0, state_length=1) +
+  facet_grid(.~mesh) +
+  ggtitle(paste0("Hour: ", "{closest_state}"))
+anim_save(glue("figs/mesh_surface_salinity.gif"), 
+          anim, nframes=interp*24,
+          fps=8, width=9, height=6, res=300, units="in")
+anim <- salinity.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, fill="grey20") +
+  geom_point(aes(x, y, colour=temp, size=area)) + 
+  scale_colour_distiller("Surface\ntemperature", type="div", palette="RdBu", direction=-1) + 
+  scale_radius(range=c(0.1, 2.5), guide="none") +
+  transition_states(hour, wrap=F, transition_length=0, state_length=1) +
+  facet_grid(.~mesh) +
+  ggtitle(paste0("Hour: ", "{closest_state}"))
+anim_save(glue("figs/mesh_surface_temperature.gif"), 
+          anim, nframes=interp*24,
+          fps=8, width=9, height=6, res=300, units="in")
+rm(salinity.df); rm(anim)
+gc()
+
+velocity.df <- map_dfr(dir("temp", "elemLay1"), 
+                       ~st_read(glue("temp/{.x}")) %>%
+                         mutate(mesh=str_split_fixed(.x, "_1h_", 2)[,1])) %>%
+  mutate(x=st_coordinates(.)[,1], 
+         y=st_coordinates(.)[,2]) %>% 
+  st_drop_geometry()
+interp <- 1
+anim <- velocity.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, fill="grey20") +
+  geom_point(aes(x, y, colour=velocity2D), size=0.3) + 
+  scale_colour_viridis_c("Surface\nwaterspeed") + 
+  transition_states(hour, wrap=F, transition_length=0, state_length=1) +
+  facet_grid(.~mesh) +
+  ggtitle(paste0("Hour: ", "{closest_state}"))
+anim_save(glue("figs/mesh_surface_speed.gif"), 
+          anim, nframes=interp*24,
+          fps=8, width=9, height=6, res=300, units="in")
+rm(velocity.df); rm(anim)
+gc()
+
+
+shortwave.df <- map_dfr(dir("temp", "nodeHour"), 
+                       ~st_read(glue("temp/{.x}")) %>%
+                         mutate(mesh=str_split_fixed(.x, "_1h_", 2)[,1])) %>%
+  mutate(x=st_coordinates(.)[,1], 
+         y=st_coordinates(.)[,2]) %>% 
+  st_drop_geometry()
+interp <- 1
+anim <- shortwave.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, fill="grey20") +
+  geom_point(aes(x, y, colour=short_wave, size=area)) + 
+  scale_colour_distiller("Shortwave\nradiation", type="seq", palette="YlOrRd") + 
+  scale_radius(range=c(0.1, 2.5), guide="none") +
+  transition_states(hour, wrap=F, transition_length=0, state_length=1) +
+  facet_grid(.~mesh) +
+  ggtitle(paste0("Hour: ", "{closest_state}"))
+anim_save(glue("figs/mesh_surface_shortwave.gif"), 
+          anim, nframes=interp*24,
+          fps=8, width=9, height=6, res=300, units="in")
+anim <- shortwave.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, fill="grey20") +
+  geom_point(aes(x, y, colour=zeta, size=area)) + 
+  scale_colour_distiller("Zeta", type="seq", palette="Purples") + 
+  scale_radius(range=c(0.1, 2.5), guide="none") +
+  transition_states(hour, wrap=F, transition_length=0, state_length=1) +
+  facet_grid(.~mesh) +
+  ggtitle(paste0("Hour: ", "{closest_state}"))
+anim_save(glue("figs/mesh_surface_zeta.gif"), 
+          anim, nframes=interp*24,
+          fps=8, width=9, height=6, res=300, units="in")
+rm(shortwave.df); rm(anim)
+gc()
