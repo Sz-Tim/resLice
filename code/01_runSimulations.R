@@ -36,21 +36,22 @@ dirs <- switch(get_os(),
                           out=glue("{getwd()}/out/")))
 
 sim.i <- expand_grid(mesh=c("WeStCOMS2", "linnhe7"),
-                     timeRes=c("1h"),
+                     timeRes=c("5min", "1h"),
                      liceSpeed=c(0, 0.0005)) %>%
+  filter(!(mesh=="WeStCOMS2" & timeRes=="5min")) %>%
   mutate(i=str_pad(row_number(), 2, "left", "0"),
          meshFile=if_else(mesh=="WeStCOMS2", 
                           glue("{dirs$mesh}WeStCOMS2_linnhe_mesh.nc"),
                           glue("{dirs$mesh}linnhe_mesh.nc")),
          hydroDir=if_else(mesh=="WeStCOMS2",
                           glue("{dirs$hydro.westcoms}"),
-                          glue("{dirs$hydro.linnhe}linnhe7_tides_met_tsobc")),
+                          glue("{dirs$hydro.linnhe}linnhe7_tides_met_tsobc_riv")),
          hydroDir=if_else(timeRes=="5min", glue("{hydroDir}_5min"), hydroDir),
          outDir=glue("{dirs$out}/sim_{i}/"),
-         nDays=if_else(timeRes=="1h", 2, 85),
-         dt=if_else(timeRes=="1h", 3600, 337.5),
-         releaseInterval=if_else(timeRes=="1h", 100, 32),
-         viabletime=if_else(timeRes=="1h", 12, 128),
+         nDays=if_else(timeRes=="1h", 2, 24),
+         dt=if_else(timeRes=="1h", 3600, 300),
+         releaseInterval=100,
+         viabletime=if_else(timeRes=="1h", 100, 1200),
          maxParticleAge=if_else(timeRes=="1h", 500, 5000))
 write_csv(sim.i, glue("{dirs$out}/sim_i.csv"))  
 sim_seq <- 1:nrow(sim.i)
@@ -74,7 +75,7 @@ properties.ls <- map(
                           numberOfDays=sim.i$nDays[.x],
                           dt=sim.i$dt[.x],
                           releaseInterval=sim.i$releaseInterval[.x],
-                          nparts=5,
+                          nparts=3,
                           viabletime=sim.i$viabletime[.x],
                           maxParticleAge=sim.i$maxParticleAge[.x],
                           vertSwimSpeedMean=sim.i$liceSpeed[.x],

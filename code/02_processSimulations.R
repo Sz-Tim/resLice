@@ -33,6 +33,10 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
   mutate(liceSpeedF=factor(liceSpeed, labels=c("Passive", "Medium")))
 sim_seq <- 1:nrow(sim_i)
+time.key <- read_csv("data/timeRes_key.csv") %>% 
+  rename(fileHour=layer) %>%
+  mutate(fileDate=as.character(fileDate)) %>%
+  select(mesh, timeRes, fileDate, fileHour, timeCalculated)
 
 
 
@@ -54,20 +58,27 @@ write_sf(elemAct.sf, "out/00_processed/elementActivity.gpkg")
 
 # particle locations ------------------------------------------------------
 
-
-loc.df <- map_dfr(
-  sim_seq, 
-  ~dir(glue("{sim_i$outDir[.x]}locs"), "locations_", full.names=T) %>%
+# 5 min files are too big. Need to process using temp storage, then combine.
+for(i in sim_seq) {
+  dir(glue("{sim_i$outDir[i]}locs"), "locations_", full.names=T) %>%
     map_dfr(~read_delim(.x, delim=" ", col_names=T, show_col_types=F) %>%
-              select(-mesh) %>%
-              mutate(date=ymd(str_sub(.x,-12,-5)),
-                     dateTime=as_datetime(paste0(str_sub(.x,-12,-5), "-", hour),
-                                          format="%Y%m%d-%H"))) %>%
-    mutate(sim=.x)
-  ) %>%
+              select(-mesh, -startLocation, -startDate,
+                     -depthLayer, -degreeDays) %>%
+              mutate(date=str_sub(.x,-12,-5))) %>%
+    mutate(sim=i) %>%
+    left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
+                select(mesh, timeRes, sim)) %>%
+    left_join(time.key, by=c("mesh", "timeRes", 
+                             "date"="fileDate", "hour"="fileHour")) %>%
+    filter(minute(timeCalculated)==0) %>%
+    select(-mesh, -timeRes, -hour, -date) %>%
+    saveRDS(glue("out/00_processed/temp_sim_{i}.rds"))
+  gc()
+}
+map_dfr(dir("out/00_processed", "temp_sim.*.rds", full.names=T), readRDS) %>%
   left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
-              select(mesh, timeRes, liceSpeed, liceSpeedF, sim))
-write_csv(loc.df, "out/00_processed/locations.csv")
+              select(sim, mesh, timeRes, liceSpeedF)) %>%
+  saveRDS("out/00_processed/locations.rds")
 
 
 
