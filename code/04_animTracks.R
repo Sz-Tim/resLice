@@ -43,48 +43,48 @@ loc.df <- loc.df %>%
          ID %in% part.sample)
 interp <- 8
 
-# 
-# anim <- loc.df %>%
-#   filter(liceSpeedF=="Medium") %>%
-#   filter(age > 6) %>%
-#   ggplot(aes(-depth, colour=meshRes)) +
-#   geom_density() + xlim(-20, 0) +
-#   scale_colour_brewer(type="qual", palette=2) +
-#   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
-#   ggtitle( "{closest_state}") +
-#   coord_flip()
-# anim_save(glue("figs/vertDistribution.gif"), 
-#           anim, nframes=interp*length(hours)*length(days),
-#           fps=32, width=5, height=4, res=300, units="in")
-# 
-# anim <- loc.df %>%
-#   filter(liceSpeedF=="Medium") %>%
-#   filter(timeRes=="1h") %>%
-#   filter(age > 6) %>%
-#   ggplot(aes(xyTot, colour=meshRes)) +
-#   geom_density() + 
-#   scale_colour_brewer(type="qual", palette=2) +
-#   scale_x_continuous("Cumulative xy movement (m)") +
-#   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
-#   ggtitle( "{closest_state}") 
-# anim_save(glue("figs/xy_movement.gif"), 
-#           anim, nframes=interp*length(hours)*length(days),
-#           fps=32, width=6, height=4, res=300, units="in")
-# 
-# anim <- loc.df %>%
-#   filter(liceSpeedF=="Medium") %>%
-#   filter(timeRes=="1h") %>%
-#   filter(age > 6) %>%
-#   ggplot(aes(xyTot, colour=meshRes)) +
-#   geom_density() + 
-#   scale_colour_brewer(type="qual", palette=2) +
-#   scale_x_continuous("Cumulative xy movement (m)", trans="log1p") +
-#   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
-#   ggtitle( "{closest_state}")
-# anim_save(glue("figs/xy_ln_movement.gif"), 
-#           anim, nframes=interp*length(hours)*length(days),
-#           fps=32, width=5, height=4, res=300, units="in")
-# 
+
+anim <- loc.df %>%
+  filter(liceSpeedF=="Medium") %>%
+  filter(age > 6) %>%
+  ggplot(aes(-depth, colour=meshRes)) +
+  geom_density() + xlim(-20, 0) +
+  scale_colour_brewer(type="qual", palette=2) +
+  transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
+  ggtitle( "{closest_state}") +
+  coord_flip()
+anim_save(glue("figs/vertDistribution.gif"),
+          anim, nframes=interp*length(hours)*length(days),
+          fps=32, width=5, height=4, res=300, units="in")
+
+anim <- loc.df %>%
+  filter(liceSpeedF=="Medium") %>%
+  filter(timeRes=="1h") %>%
+  filter(age > 6) %>%
+  ggplot(aes(xyTot, colour=meshRes)) +
+  geom_density() +
+  scale_colour_brewer(type="qual", palette=2) +
+  scale_x_continuous("Cumulative xy movement (m)") +
+  transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
+  ggtitle( "{closest_state}")
+anim_save(glue("figs/xy_movement.gif"),
+          anim, nframes=interp*length(hours)*length(days),
+          fps=32, width=6, height=4, res=300, units="in")
+
+anim <- loc.df %>%
+  filter(liceSpeedF=="Medium") %>%
+  filter(timeRes=="1h") %>%
+  filter(age > 6) %>%
+  ggplot(aes(xyTot, colour=meshRes)) +
+  geom_density() +
+  scale_colour_brewer(type="qual", palette=2) +
+  scale_x_continuous("Cumulative xy movement (m)", trans="log1p") +
+  transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
+  ggtitle( "{closest_state}")
+anim_save(glue("figs/xy_ln_movement.gif"),
+          anim, nframes=interp*length(hours)*length(days),
+          fps=32, width=5, height=4, res=300, units="in")
+
 # 
 # anim <- loc.df %>%
 #   ggplot() + 

@@ -39,7 +39,7 @@ dateSeq <- str_remove_all(startDate + (seq_along(f.orig)-1), "-")
 # filter 5min to 1h -------------------------------------------------------
 extract.i <- tibble(file_5min=dir(dirs$linnhe_5min_new)) %>%
   mutate(cumul_hours=row_number()*2,
-         day=floor(cumul_hours/24),
+         day=(cumul_hours-1) %/% 24,
          date=str_remove_all(startDate + day, "-"),
          layer_start_1h=(cumul_hours-1) %% 24,
          layer_end_1h=layer_start_1h+1,
@@ -67,17 +67,17 @@ dims.i <- tribble(~name, ~len, ~obj,
                   "node", node$len, node,
                   "siglayers", siglayers$len, siglayers,
                   "siglevels", siglevels$len, siglevels,
-                  "Time", 24, ncdim_def("Time", "Time", 1:24),
+                  "Time", 24, ncdim_def("Time", "Time", 1:24), 
                   "three", 3, three,
                   "nine", 9, ncdim_def("nine", "nine", 1:9))
 
 # hydro variables
 var.needed <- c("lon", "lat", "lonc", "latc", "art1",
-                "h_center", "h", "time", "zeta", "siglay", "siglev",
+                "h_center", "h", "Times", "zeta", "siglay", "siglev",
                 "u", "v", "ua", "va", "ww", "omega", "temp", "salinity", 
                 "km", "short_wave", "uwind_speed", "vwind_speed",
                 "net_heat_flux")
-var.toUpdate <- c("time", "zeta", "u", "v", "ww", "temp", "salinity", "km", "short_wave")
+var.toUpdate <- c("Times", "zeta", "u", "v", "ww", "temp", "salinity", "km", "short_wave")
 var.init.ls <- map(var.needed, ~ncvar_get(init.nc, .x)) %>% setNames(var.needed)
 var.att.ls <- map(var.needed, ~ncatt_get(init.nc, .x)) %>% setNames(var.needed)
 nc_close(init.nc)
@@ -118,6 +118,8 @@ for(i in 1:n_distinct(extract.i$file_1h)) {
     }
     nc_close(nc.j)
   }
+  vars.hour_i[["Times"]] <- str_replace(vars.hour_i[["Times"]], "T", " ") %>%
+    as_datetime() %>% as.numeric() %>% array()
   for(v in var.needed) {
     dims.v <- dim(vars.hour_i[[v]])
     ncvar.i[[v]] <- ncvar_def(name=v, 
@@ -144,47 +146,47 @@ for(i in 1:n_distinct(extract.i$file_1h)) {
 getTimes <- function(nc, unit="s") {
   library(ncdf4)
   nc_temp <- nc_open(nc)
-  # Could redo to use Times, which is correct and formatted
-  times <- ncvar_get(nc_temp, "time")
+  times <- c(ncvar_get(nc_temp, "Times"))
   nc_close(nc_temp)
-  if(unit=="s") {
-    times <- times*24*60*60
-  }
   return(times)
 }
 
 
 time.df <- list(
-  map_dfr(dir(dirs$linnhe_5min), 
+  map_dfr(dir(dirs$linnhe_5min_new), 
           ~tibble(file=.x,
                   fileDate=str_split_fixed(.x, "_", 3)[,2], 
-                  time_raw=getTimes(glue("{dirs$linnhe_5min}/{.x}"))) %>%
-            mutate(layer=row_number()-1)) %>%
+                  time_raw=getTimes(glue("{dirs$linnhe_5min_new}/{.x}"))) %>%
+            mutate(layer=row_number()-1,
+                   time_dt=str_replace(time_raw, "T", " ") %>%
+                     as_datetime())) %>%
     mutate(mesh="linnhe7", 
            timeRes="5min"),
   map_dfr(dir(dirs$linnhe_1h), 
           ~tibble(file=.x,
                   fileDate=str_split_fixed(.x, "_", 3)[,2], 
                   time_raw=getTimes(glue("{dirs$linnhe_1h}/{.x}"))) %>%
-            mutate(layer=row_number()-1)) %>%
+            mutate(layer=row_number()-1,
+                   time_dt=as_datetime(time_raw))) %>%
     mutate(mesh="linnhe7", 
            timeRes="1h"),
   map_dfr(dir(dirs$WeStCOMS2_1h), 
           ~tibble(file=.x,
                   fileDate=str_split_fixed(.x, "_", 3)[,2], 
                   time_raw=getTimes(glue("{dirs$WeStCOMS2_1h}/{.x}"))) %>%
-            mutate(layer=row_number()-1)) %>%
+            mutate(layer=row_number()-1,
+                   time_dt=str_replace(time_raw, "T", " ") %>%
+                     as_datetime())) %>%
     mutate(mesh="WeStCOMS2", 
            timeRes="1h")
 ) %>%
   do.call('rbind', .) %>%
-  mutate(time_raw_dt=as.POSIXct(time_raw, origin="1858-11-17"), 
-         date=date(time_raw_dt)) %>%
+  mutate(date=date(time_dt)) %>%
   group_by(mesh, timeRes) %>%
-  arrange(time_raw_dt) %>%
-  mutate(timeStep=difftime(time_raw_dt, lag(time_raw_dt), units="mins"),
+  arrange(time_dt) %>%
+  mutate(timeStep=difftime(time_dt, lag(time_dt), units="mins"),
          i=row_number()-1,
-         timeCalculated=as_datetime("2021-11-01 00:00:00") + round(mean(timeStep, na.rm=T))*i)
+         timeCalculated=round_date(time_dt, "5 minute"))
 
 write_csv(time.df, "data/timeRes_key.csv")
 

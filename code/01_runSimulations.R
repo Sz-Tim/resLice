@@ -36,8 +36,8 @@ dirs <- switch(get_os(),
                           out=glue("{getwd()}/out/")))
 
 sim.i <- expand_grid(mesh=c("WeStCOMS2", "linnhe7"),
-                     timeRes=c("5min", "1h"),
-                     liceSpeed=c(0, 0.0005)) %>%
+                     timeRes=c("1h", "5min"),
+                     liceSpeed=c(0.0001, 0.0005, 0.001)) %>%
   filter(!(mesh=="WeStCOMS2" & timeRes=="5min")) %>%
   mutate(i=str_pad(row_number(), 2, "left", "0"),
          meshFile=if_else(mesh=="WeStCOMS2", 
@@ -48,7 +48,7 @@ sim.i <- expand_grid(mesh=c("WeStCOMS2", "linnhe7"),
                           glue("{dirs$hydro.linnhe}linnhe7_tides_met_tsobc_riv")),
          hydroDir=if_else(timeRes=="5min", glue("{hydroDir}_5min"), hydroDir),
          outDir=glue("{dirs$out}/sim_{i}/"),
-         nDays=if_else(timeRes=="1h", 2, 24),
+         nDays=if_else(timeRes=="1h", 3, 24),
          dt=if_else(timeRes=="1h", 3600, 300),
          releaseInterval=100,
          viabletime=if_else(timeRes=="1h", 100, 1200),

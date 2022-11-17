@@ -31,7 +31,7 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
   do.call('rbind', .) %>%
   select(i, area, depth, mesh, geom)
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Passive", "Medium")))
+  mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")))
 sim_seq <- 1:nrow(sim_i)
 time.key <- read_csv("data/timeRes_key.csv") %>% 
   rename(fileHour=layer) %>%

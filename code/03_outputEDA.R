@@ -33,7 +33,7 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
   full_join(., read_csv("data/loch_regions.csv"), by="lochRegion")
 mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Passive", "Medium")),
+  mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")),
          sim=as.numeric(i))
 elemAct.sf <- st_read("out/00_processed/elementActivity.gpkg") %>%
   mutate(liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)),
@@ -93,7 +93,7 @@ ggsave("figs/mesh_depth.png", width=6, height=4, dpi=300)
 
 # tendency to be deeper in WeStCOMS, but need to filter by bathymetric depth
 # since linnhe includes shallower areas
-loc.df %>% filter(age>12 & status != 66) %>%
+loc.df %>% filter(timeCalculated > "2021-11-01 ", status != 66) %>%
   ggplot(aes(depth, colour=meshRes)) +
   geom_density() +
   scale_colour_brewer(type="qual", palette=2) +
@@ -197,7 +197,9 @@ loc.df %>%
   scale_x_log10("Mean xy hourly displacement (m/h)")
 ggsave("figs/xy_mean_log.png", width=6, height=4, dpi=300)
 loc.df %>% 
+  filter(status!=66) %>%
   group_by(ID, sim, meshRes, liceSpeedF) %>%
+  slice_tail(n=1) %>%
   ggplot(aes(xyTot/age, colour=meshRes, linetype=liceSpeedF, group=sim)) + 
   geom_density() + 
   scale_colour_brewer(type="qual") +
