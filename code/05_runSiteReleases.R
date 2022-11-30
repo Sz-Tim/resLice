@@ -14,7 +14,7 @@
 library(tidyverse); library(glue); library(lubridate); library(sf)
 source("code/00_fn.R")
 
-#TODO: stepPerStep <- c("5min"=2, "1h"=24)
+
 
 # define parameters -------------------------------------------------------
 
@@ -28,13 +28,13 @@ dirs <- switch(get_os(),
                             hydro.linnhe="D:/hydroOut/linnhe7/linnhe7_tides_met_tsobc_riv",
                             hydro.westcoms="D:/hydroOut/WeStCOMS2/Archive",
                             jar="C:/Users/sa04ts/OneDrive - SAMS/Projects/OffAqua/particle_track/out",
-                            out=glue("{getwd()}/out/gridRelease")),
+                            out=glue("{getwd()}/out/siteRelease")),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
                           hydro.linnhe="/media/archiver/common/sa04ts-temp/linnhe7",
                           hydro.westcoms="/media/archiver/common/sa01da-work/WeStCOMS2/Archive",
                           jar=glue("{getwd()}/jar"),
-                          out=glue("{getwd()}/out/gridRelease")))
+                          out=glue("{getwd()}/out/siteRelease")))
 
 sim.i <- expand_grid(mesh=c("linnhe7", "WeStCOMS2"),
                      timeRes=c("1h", "5min"),
@@ -47,12 +47,13 @@ sim.i <- expand_grid(mesh=c("linnhe7", "WeStCOMS2"),
          hydroDir=glue("{hydroDir}{ifelse(timeRes=='5min','_5min','')}"),
          hydroDir2=glue("{dirs$hydro.westcoms}{ifelse(timeRes=='5min','_5min','')}"),
          outDir=glue("{dirs$out}/sim_{i}/"),
+         siteDensity=glue("liceScale_daily_{timeRes}.tsv"),
          nDays=if_else(timeRes=="1h", nDays, nDays*12),
          dt=if_else(timeRes=="1h", 3600, 300),
          stepsPerStep=if_else(timeRes=="1h", 24, 2),
-         releaseInterval=100,
-         viabletime=if_else(timeRes=="1h", 100, 1200),
-         maxParticleAge=if_else(timeRes=="1h", 500, 5000))
+         releaseInterval=1,
+         viableDegreeDays=40,
+         maxDegreeDays=150)
 write_csv(sim.i, glue("{dirs$out}/sim_i.csv"))  
 sim_seq <- 1:nrow(sim.i)
 
@@ -73,20 +74,23 @@ properties.ls <- map(
                           minchVersion=str_sub(sim.i$mesh[.x], -1, -1),
                           datadir2=paste0(normalizePath(sim.i$hydroDir2[.x]), sep),
                           mesh2=normalizePath(paste0(dirs$mesh, "/WeStCOMS2_mesh.nc")),
-                          sitefile="..\\..\\..\\data\\linnhe_start_100m_corran_20km.tsv",
+                          sitefile="..\\..\\..\\data\\fishFarmSites.tsv",
+                          siteDensityPath=paste0("..\\..\\..\\data\\", sim.i$siteDensity[.x]), 
                           numberOfDays=sim.i$nDays[.x],
                           dt=sim.i$dt[.x],
                           stepsPerStep=sim.i$stepsPerStep[.x],
                           releaseInterval=sim.i$releaseInterval[.x],
-                          nparts=1,
-                          viabletime=sim.i$viabletime[.x],
-                          maxParticleAge=sim.i$maxParticleAge[.x],
+                          nparts=5,
+                          viableDegreeDays=sim.i$viableDegreeDays[.x],
+                          maxDegreeDays=sim.i$maxDegreeDays[.x],
                           vertSwimSpeedMean=sim.i$liceSpeed[.x],
                           vertSwimSpeedStd=sim.i$liceSpeed[.x]/5,
                           sinkingRateMean=sim.i$liceSpeed[.x],
                           sinkingRateStd=sim.i$liceSpeed[.x]/5,
                           variableDiffusion="false",
-                          recordMovement="false"))
+                          recordMovement="false",
+                          recordConnectivity="true",
+                          connectivityInterval=ifelse(sim.i$timeRes[.x]=="1h", 1, 12)))
 walk(sim_seq, 
      ~cat(properties.ls[[.x]] %>% 
             str_replace_all("\\\\", "\\\\\\\\") %>%

@@ -26,7 +26,9 @@ echo "sitefile = "$SITEFILE
 cd $OUTDIR
 pwd
 
-/c:/'Program Files'/Java/jre1.8.0_241/bin/javaw -Xmx8192m -Xms4096m -jar ../../jar/particle_track.jar ${1} | tee stdout.txt
+c:/Users/sa04ts/.jdks/openjdk-17.0.1/bin/javaw -Xmx8192m -Xms4096m -jar ../../../jar/particle_track.jar ${1} | tee stdout.txt
 mkdir locs
 mv locations_* locs/
+mkdir connectivity
+mv connectivity_* connectivity/
 

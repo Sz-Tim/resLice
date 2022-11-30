@@ -14,10 +14,10 @@ source("code/00_fn.R")
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
                             mesh="D:/hydroOut/",
-                            out=glue("{getwd()}/out/gridRelease/")),
+                            out=glue("{getwd()}/out/siteRelease/")),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
-                          out=glue("{getwd()}/out/gridRelease/")))
+                          out=glue("{getwd()}/out/siteRelease/")))
 
 
 
@@ -52,7 +52,7 @@ elemAct.df <- map_dfr(sim_seq,
   left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
               select(mesh, timeRes, liceSpeed, liceSpeedF, sim))
 elemAct.sf <- left_join(mesh.sf, elemAct.df, by=c("mesh", "i"))
-write_sf(elemAct.sf, "out/00_processed/elementActivity_grid.gpkg")
+write_sf(elemAct.sf, "out/00_processed/elementActivity_site.gpkg")
 
 
 
@@ -72,17 +72,40 @@ for(i in sim_seq) {
                              "date"="fileDate", "hour"="fileHour")) %>%
     filter(minute(timeCalculated)==0) %>%
     select(-mesh, -timeRes, -hour, -date) %>%
-    saveRDS(glue("out/00_processed/temp_grid_sim_{i}.rds"))
+    saveRDS(glue("out/00_processed/temp_site_sim_{i}.rds"))
   gc()
 }
-map_dfr(dir("out/00_processed", "temp_grid_sim.*.rds", full.names=T), readRDS) %>%
+map_dfr(dir("out/00_processed", "temp_site_sim.*.rds", full.names=T), readRDS) %>%
   left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
               select(sim, mesh, timeRes, liceSpeedF)) %>%
-  saveRDS("out/00_processed/locations_grid.rds")
+  saveRDS("out/00_processed/locations_site.rds")
 
 
 
 
 
+
+# connectivity ------------------------------------------------------------
+
+site.i <- read_tsv("data/fishFarmSites.tsv", col_names=c("site", "x", "y"))
+connect.df <- vector("list", length(sim_seq))
+for(i in sim_seq) {
+  connect.df[[i]] <- dir(glue("{sim_i$outDir[i]}connectivity"), "connectivity_") %>%
+    map_dfr(~read_delim(glue("{sim_i$outDir[i]}connectivity/{.x}"), 
+                        delim=" ", col_names=site.i$site, show_col_types=F) %>%
+              mutate(source=site.i$site) %>%
+              pivot_longer(-"source", names_to="dest", values_to="density") %>%
+              mutate(sim=i,
+                     fdate=str_split_fixed(.x, "_", 3)[,2],
+                     steps=str_remove(str_split_fixed(.x, "_", 3)[,3], ".dat"))) %>%
+    mutate(density=density/ifelse(sim_i$timeRes[i]=="1h", 1, 12),
+           cumulHours=as.numeric(steps)/if_else(sim_i$timeRes[i]=="1h", 30, 360),
+           timeSim=as_datetime("2021-11-01 00:00:00") + cumulHours*60*60) %>%
+    arrange(timeSim)
+}
+do.call('rbind', connect.df) %>%
+  left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
+              select(sim, mesh, timeRes, liceSpeedF)) %>%
+  saveRDS("out/00_processed/connectivity_site.rds")
 
 

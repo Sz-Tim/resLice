@@ -12,7 +12,9 @@ dirs <- list(
   linnhe_1h="D:/hydroOut/linnhe7/linnhe7_tides_met_tsobc_riv/netcdf_2021",
   linnhe_5min="D:/hydroOut/linnhe7/linnhe7_tides_met_tsobc_riv_5min/orig",
   linnhe_5min_new="D:/hydroOut/linnhe7/linnhe7_tides_met_tsobc_riv_5min/netcdf_2021",
-  WeStCOMS2_1h="D:/hydroOut/WeStCOMS2/Archive/netcdf_2021"
+  WeStCOMS2_1h="D:/hydroOut/WeStCOMS2/Archive/netcdf_2021",
+  WeStCOMS2_5min="D:/hydroOut/WeStCOMS2/Archive_5min/orig",
+  WeStCOMS2_5min_new="D:/hydroOut/WeStCOMS2/Archive_5min/netcdf_2021"
 )
 
 startDate <- ymd("2021-11-01")
@@ -22,6 +24,7 @@ startDate <- ymd("2021-11-01")
 
 # rename ------------------------------------------------------------------
 
+# linnhe7 5min renaming
 f.orig <- dir(dirs$linnhe_5min)
 dateSeq <- str_remove_all(startDate + (seq_along(f.orig)-1), "-")
 
@@ -34,9 +37,19 @@ dateSeq <- str_remove_all(startDate + (seq_along(f.orig)-1), "-")
 # file.copy(glue("{dirs$linnhe_5min}/{f.orig}"), glue("{dirs$linnhe_5min_new}/{f.renamed}"))
 
 
+# WeStCOMS2 5min renaming
+f.orig <- dir(dirs$WeStCOMS2_5min)
+dateSeq <- str_remove_all(startDate + (seq_along(f.orig)-1), "-")
+
+# RUN TO RENAME DIMA'S RE-RUN FILES
+f.renamed <- str_replace(f.orig, "_202111[0-1][0-9]_", glue("_{dateSeq}_"))
+file.copy(glue("{dirs$WeStCOMS2_5min}/{f.orig}"), glue("{dirs$WeStCOMS2_5min_new}/{f.renamed}"))
+
+
 
 
 # filter 5min to 1h -------------------------------------------------------
+# This is only necessary for linnhe7
 extract.i <- tibble(file_5min=dir(dirs$linnhe_5min_new)) %>%
   mutate(cumul_hours=row_number()*2,
          day=(cumul_hours-1) %/% 24,
@@ -170,6 +183,15 @@ time.df <- list(
                    time_dt=as_datetime(time_raw))) %>%
     mutate(mesh="linnhe7", 
            timeRes="1h"),
+  map_dfr(dir(dirs$WeStCOMS2_5min_new), 
+          ~tibble(file=.x,
+                  fileDate=str_split_fixed(.x, "_", 3)[,2], 
+                  time_raw=getTimes(glue("{dirs$WeStCOMS2_5min_new}/{.x}"))) %>%
+            mutate(layer=row_number()-1,
+                   time_dt=str_replace(time_raw, "T", " ") %>%
+                     as_datetime())) %>%
+    mutate(mesh="WeStCOMS2", 
+           timeRes="5min"),
   map_dfr(dir(dirs$WeStCOMS2_1h), 
           ~tibble(file=.x,
                   fileDate=str_split_fixed(.x, "_", 3)[,2], 
@@ -189,4 +211,19 @@ time.df <- list(
          timeCalculated=round_date(time_dt, "5 minute"))
 
 write_csv(time.df, "data/timeRes_key.csv")
+
+
+
+out.ls <- vector("list", length(dir(dirs$WeStCOMS2_5min_new)))
+for(i in 47:length(dir(dirs$WeStCOMS2_5min_new))) {
+  f <- dir(dirs$WeStCOMS2_5min_new)[i]
+  out.ls[[i]] <- tibble(file=f,
+                        fileDate=str_split_fixed(f, "_", 3)[,2],
+                        time_raw=getTimes(glue("{dirs$WeStCOMS2_5min_new}/{f}"))) %>%
+    mutate(layer=row_number()-1,
+           time_dt=str_replace(time_raw, "T", " ") %>%
+             as_datetime())
+}
+i
+
 

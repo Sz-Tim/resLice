@@ -12,10 +12,10 @@ theme_set(theme_classic())
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
                             mesh="D:/hydroOut/",
-                            out=glue("{getwd()}/out/gridRelease/")),
+                            out=glue("{getwd()}/out/siteRelease/")),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
-                          out=glue("{getwd()}/out/")))
+                          out=glue("{getwd()}/out/siteRelease/")))
 
 mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
@@ -28,7 +28,7 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
   mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")))
 
-loc.df <- readRDS("out/00_processed/locations_grid.rds") %>%
+loc.df <- readRDS("out/00_processed/locations_site.rds") %>%
   filter(status != 66) %>%
   mutate(liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)),
          meshRes=factor(paste0(mesh, ", ", timeRes),
@@ -38,7 +38,7 @@ loc.df <- readRDS("out/00_processed/locations_grid.rds") %>%
 days <- unique(loc.df$date)
 hours <- unique(loc.df$hour)
 particles <- unique(filter(loc.df, date %in% days & hour %in% hours)$ID)
-part.sample <- sample(particles, min(length(particles), 5e3))
+part.sample <- sample(particles, min(length(particles), 100e3))
 
 loc.df <- loc.df %>%
   filter(date %in% days,
@@ -58,7 +58,7 @@ anim <- loc.df %>%
   facet_grid(.~liceSpeedF) +
   theme(legend.position="bottom") +
   coord_flip()
-anim_save(glue("figs/vertDistribution_grid.gif"),
+anim_save(glue("figs/vertDistribution_site.gif"),
           anim, nframes=interp*length(hours)*length(days),
           fps=24, width=9, height=4, res=300, units="in")
 
@@ -73,7 +73,7 @@ anim <- loc.df %>%
   facet_grid(.~meshRes) +
   theme(legend.position="bottom") +
   coord_flip()
-anim_save(glue("figs/vertDistribution2_grid.gif"),
+anim_save(glue("figs/vertDistribution2_site.gif"),
           anim, nframes=interp*length(hours)*length(days),
           fps=24, width=9, height=4, res=300, units="in")
 
@@ -88,7 +88,7 @@ anim <- loc.df %>%
   ggtitle( "{closest_state}") +
   facet_grid(.~liceSpeedF) +
   theme(legend.position="bottom")
-anim_save(glue("figs/xy_movement_grid.gif"),
+anim_save(glue("figs/xy_movement_site.gif"),
           anim, nframes=interp*length(hours)*length(days),
           fps=24, width=9, height=4, res=300, units="in")
 
@@ -102,7 +102,7 @@ anim <- loc.df %>%
   ggtitle( "{closest_state}") +
   facet_grid(.~meshRes) +
   theme(legend.position="bottom")
-anim_save(glue("figs/xy_movement2_grid.gif"),
+anim_save(glue("figs/xy_movement2_site.gif"),
           anim, nframes=interp*length(hours)*length(days),
           fps=24, width=9, height=4, res=300, units="in")
 
@@ -117,7 +117,7 @@ anim <- loc.df %>%
   ggtitle("{closest_state}") +
   facet_grid(.~liceSpeedF) +
   theme(legend.position="bottom")
-anim_save(glue("figs/xy_ln_movement_grid.gif"),
+anim_save(glue("figs/xy_ln_movement_site.gif"),
           anim, nframes=interp*length(hours)*length(days),
           fps=24, width=9, height=4, res=300, units="in")
 
@@ -131,7 +131,7 @@ anim <- loc.df %>%
   ggtitle("{closest_state}") +
   facet_grid(.~meshRes) +
   theme(legend.position="bottom")
-anim_save(glue("figs/xy_ln_movement2_grid.gif"),
+anim_save(glue("figs/xy_ln_movement2_site.gif"),
           anim, nframes=interp*length(hours)*length(days),
           fps=24, width=9, height=4, res=300, units="in")
 
@@ -144,7 +144,7 @@ anim_save(glue("figs/xy_ln_movement2_grid.gif"),
 #   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
 #   facet_grid(meshRes~liceSpeedF) +
 #   ggtitle( "{closest_state}")
-# anim_save(glue("figs/tracks_AllPart_new_grid.gif"), 
+# anim_save(glue("figs/tracks_AllPart_new_site.gif"), 
 #           anim, nframes=interp*length(hours)*length(days),
 #           fps=32, width=6, height=9, res=300, units="in")
 # 
@@ -164,9 +164,41 @@ anim_save(glue("figs/xy_ln_movement2_grid.gif"),
 #   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
 #   facet_grid(.~meshRes) +
 #   ggtitle( "{closest_state}")
-# anim_save(glue("figs/tracks_AllPart_nonPassive_grid.gif"), 
+# anim_save(glue("figs/tracks_AllPart_nonPassive_site.gif"), 
 #           anim, nframes=interp*length(hours)*length(days),
 #           fps=32, width=9, height=4, res=300, units="in")
+
+
+
+
+
+interp <- 1
+dens.sf <- loc.df %>% 
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(mesh.sf %>% filter(mesh=="WeStCOMS2") %>% select(i)) %>%
+  st_drop_geometry() %>%
+  group_by(sim, meshRes, liceSpeedF, timeCalculated, i) %>%
+  summarise(density=sum(density), N=n()) %>%
+  ungroup %>%
+  inner_join(mesh.sf %>% filter(mesh=="WeStCOMS2"), .) %>%
+  mutate(density=log(density/(area*depth)))
+rm(loc.df); gc()
+anim <- dens.sf %>%
+  ggplot() + 
+  geom_sf(data=mesh.fp, fill=NA, colour="grey30") +
+  geom_sf(aes(fill=density), colour=NA) + 
+  scale_fill_viridis_c() +
+  transition_states(timeCalculated, wrap=F, transition_length=0, state_length=1) +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank(),
+        legend.position="bottom") +
+  ggtitle( "Lice density: {closest_state}")
+anim_save(glue("figs/density_slower_site.gif"),
+          anim, nframes=interp*length(hours)*length(days),
+          fps=6, width=7, height=9, res=300, units="in")
+
+
+
 
 
 
@@ -211,7 +243,7 @@ velocity.df <- loc.df %>%
 #   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
 #   facet_grid(depth~meshRes) +
 #   ggtitle( "{closest_state}")
-# anim_save(glue("figs/tracks_Dir_nonPassive_grid.gif"), 
+# anim_save(glue("figs/tracks_Dir_nonPassive_site.gif"), 
 #           anim, nframes=interp*length(hours)*length(days),
 #           fps=32, width=9, height=10, res=300, units="in")
 # 
@@ -239,7 +271,7 @@ velocity.df <- loc.df %>%
 #   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
 #   facet_grid(.~meshRes) +
 #   ggtitle( "{closest_state}")
-# anim_save(glue("figs/mdDepth_map_nonPassive_grid.gif"), 
+# anim_save(glue("figs/mdDepth_map_nonPassive_site.gif"), 
 #           anim, nframes=interp*length(hours)*length(days),
 #           fps=32, width=9, height=4, res=300, units="in")
 # anim <- elem.Depth %>%
@@ -254,7 +286,7 @@ velocity.df <- loc.df %>%
 #   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
 #   facet_grid(.~meshRes) +
 #   ggtitle( "{closest_state}")
-# anim_save(glue("figs/mdDepthPct_map_nonPassive_grid.gif"), 
+# anim_save(glue("figs/mdDepthPct_map_nonPassive_site.gif"), 
 #           anim, nframes=interp*length(hours)*length(days),
 #           fps=32, width=9, height=4, res=300, units="in")
 # rm(elem.Depth)
@@ -299,7 +331,7 @@ foreach(i=1:nrow(sim_i),
     transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
     ggtitle(paste0(glue("{sim_i$mesh[i]}, {sim_i$timeRes[i]}, {sim_i$liceSpeedF[i]}"),
                    ". {closest_state}"))
-  anim_save(glue("figs/tracks_sim{str_pad(i,2,'left','0')}_10kPart_grid.gif"),
+  anim_save(glue("figs/tracks_sim{str_pad(i,2,'left','0')}_10kPart_site.gif"),
             anim, nframes=interp*length(hours)*length(days),
             fps=32, width=7, height=6, res=300, units="in")
   paste("Finished", i)
@@ -341,7 +373,7 @@ stopCluster(cl)
 #             transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
 #             ggtitle(paste0(glue("{info$meshRes}, {info$liceSpeedF}, {info$depth}m"),
 #                            ". {closest_state}"))
-#           anim_save(glue("figs/tracks_dir_{info$meshRes}_{info$depth}m_grid.gif"),
+#           anim_save(glue("figs/tracks_dir_{info$meshRes}_{info$depth}m_site.gif"),
 #                     anim, nframes=interp*length(hours)*length(days),
 #                     fps=32, width=7, height=6, res=300, units="in")
 #           paste("Finished", i)
@@ -379,7 +411,7 @@ foreach(i=seq_along(vel.ls),
             facet_grid(.~meshRes) +
             ggtitle(paste0(glue("{info$liceSpeedF}, {info$depth}m"),
                            ". {closest_state}"))
-          anim_save(glue("figs/tracks_dir_{info$depth}m_{info$liceSpeedF}_grid.gif"),
+          anim_save(glue("figs/tracks_dir_{info$depth}m_{info$liceSpeedF}_site.gif"),
                     anim, nframes=interp*length(hours)*length(days),
                     fps=32, width=9, height=4, res=300, units="in")
           paste("Finished", i)
@@ -426,7 +458,7 @@ stopCluster(cl)
 #             transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
 #             ggtitle(paste0(glue("{info$meshRes}, {info$liceSpeedF}"), 
 #                            ". {closest_state}"))
-#           anim_save(glue("figs/tracks_dir_{info$meshRes}_grid.gif"), 
+#           anim_save(glue("figs/tracks_dir_{info$meshRes}_site.gif"), 
 #                     anim, nframes=interp*length(hours)*length(days),
 #                     fps=32, width=7, height=6, res=300, units="in")
 #           paste("Finished", i)
