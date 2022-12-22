@@ -14,7 +14,7 @@
 library(tidyverse); library(glue); library(lubridate); library(sf)
 source("code/00_fn.R")
 
-#TODO: stepPerStep <- c("5min"=2, "1h"=24)
+
 
 # define parameters -------------------------------------------------------
 
