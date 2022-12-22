@@ -33,7 +33,8 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
   full_join(., read_csv("data/loch_regions.csv"), by="lochRegion")
 mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")),
+  mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
+                           labels=c("Slow", "Medium", "Fast")),
          sim=as.numeric(i))
 elemAct.sf <- st_read("out/00_processed/elementActivity_site.gpkg") %>%
   mutate(liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)),
@@ -137,11 +138,13 @@ ggsave("figs/vertDist_by_hour3_site.png", width=12, height=9, dpi=300)
 
 # tracks ------------------------------------------------------------------
 
-part.samp <- sample(unique(loc.df$ID), min(length(unique(loc.df$ID)), 1e3))
-loc.df %>% filter(ID %in% part.samp) %>%
-  ggplot(aes(x, y, group=ID)) +
-  geom_path(alpha=0.25) + 
-  facet_grid(meshRes~liceSpeedF)
+# bbox <- st_bbox(mesh.fp)
+# part.samp <- sample(unique(loc.df$ID), min(length(unique(loc.df$ID)), 1e3))
+# loc.df %>% filter(ID %in% part.samp) %>%
+#   filter(between(x, bbox$xmin, bbox$xmax), between(y, bbox$ymin, bbox$ymax)) %>%
+#   ggplot(aes(x, y, group=ID)) +
+#   geom_path(alpha=0.25) + 
+#   facet_grid(meshRes~liceSpeedF)
 
 
 
@@ -152,16 +155,19 @@ loc.df %>% filter(ID %in% part.samp) %>%
 
 # lice more likely to exit loch in WeStCOMS, at faster sink/swim speeds
 loc.df %>% 
-  group_by(meshRes, liceSpeedF) %>% 
-  summarise(propExit=sum(status==66)/n_distinct(ID)) %>% 
+  group_by(meshRes, liceSpeedF, ID) %>% 
+  summarise(exited=any(meshParticle==1)) %>% 
+  group_by(meshRes, liceSpeedF) %>%
+  summarise(propExit=mean(exited)) %>% 
   ggplot(aes(liceSpeedF, propExit, colour=meshRes, group=meshRes)) + 
   geom_point() + geom_path() +
-  scale_colour_brewer(type="div") 
+  scale_colour_brewer(type="div") +
+  ylim(0, NA) + labs(y="Proportion leaving Loch Linnhe")
 ggsave("figs/exits_site.png", width=5, height=3, dpi=300)
 
 # confirming exits occur at open boundaries only
-loc.df %>%
-  filter(status==66) %>%
+loc.df %>% 
+  filter(meshParticle==1) %>%
   ggplot(aes(x, y, colour=age)) + 
   geom_point(alpha=0.2, size=0.5, shape=1) +
   scale_colour_viridis_c() +
@@ -255,10 +261,12 @@ ggsave("figs/prFloat_mesh_by_speed_site.png", p, width=8, height=8, dpi=300)
 
 # maps --------------------------------------------------------------------
 
+bbox <- st_bbox(mesh.fp)
 for(i in 1:nrow(sim_i)) {
   p <- loc.df %>%
     filter(age>=12 & status != 66) %>%
     filter(sim==i) %>%
+    filter(between(x, bbox$xmin, bbox$xmax), between(y, bbox$ymin, bbox$ymax)) %>%
     ggplot(aes(x,y, alpha=density, colour=depth)) + 
     geom_point(size=0.1, shape=1) + 
     scale_colour_viridis_c(direction=-1, option="D", limits=c(0,20), na.value="#000033") +
@@ -304,8 +312,9 @@ for(i in 1:nrow(sim_i)) {
 # velocities --------------------------------------------------------------
 
 velocity.df <- loc.df %>%
-  select(ID, timeCalculated, age, status, x, y, density, depth, 
+  select(ID, timeCalculated, age, status, x, y, density, depth, meshParticle,
          sim, mesh, meshRes, elem) %>%
+  mutate(meshParticle=if_else(meshParticle==0, mesh, "WeStCOMS2")) %>%
   arrange(sim, timeCalculated, ID) %>%
   group_by(ID, sim) %>%
   mutate(x_m1=lag(x), 
@@ -320,10 +329,15 @@ velocity.df <- loc.df %>%
   filter(age>=12 & status != 66) %>%
   left_join(., sim_i %>% select(sim, mesh, liceSpeedF)) %>%
   left_join(., mesh.sf %>% st_drop_geometry() %>% 
-              select(i, mesh, bearing, depth) %>% 
-              rename(elem=i, lochDir=bearing, meshDepth=depth),
-            by=c("mesh", "elem")) %>%
-  mutate(downloch=cos(lochDir-bearing)) # -1: uploch, 1: downloch
+              select(i, mesh, bearing) %>% 
+              rename(meshParticle=mesh, elem=i, lochDir=bearing),
+            by=c("meshParticle", "elem")) %>%
+  mutate(downloch=cos(lochDir-bearing)) %>% # -1: uploch, 1: downloch
+  st_as_sf(coords=c("x", "y"), crs=27700, remove=F) %>%
+  st_join(mesh.sf %>% filter(mesh=="WeStCOMS2") %>% 
+            select(i, depth) %>% rename(elem_WC=i, meshDepth=depth)) %>%
+  st_drop_geometry() %>% 
+  filter(complete.cases(.))
 
 
 # velocity.df %>%
@@ -398,36 +412,77 @@ ggsave("figs/direction_map_site.png", p, width=9, height=9, dpi=300)
 
 
 
-meshDir.sum <- left_join(mesh.sf,
-                         velocity.df %>%
-                           filter(liceSpeedF=="Medium") %>%
-                           group_by(mesh, meshRes, elem) %>%
-                           summarise(N=n(),
-                                     totDens=sum(density),
-                                     prUploch=mean(downloch<0)) %>%
-                           ungroup %>% rename(i=elem),
-                         by=c("mesh", "i")) %>%
+meshDir.sum <- velocity.df %>%
+  group_by(mesh, meshRes, liceSpeedF, elem_WC) %>%
+  summarise(N=n(), 
+            totDens=sum(density), 
+            prUploch=mean(downloch<0)) %>%
+  ungroup %>%
+  inner_join(mesh.sf %>% 
+               filter(mesh=="WeStCOMS2") %>% 
+               select(i, depth, area) %>% 
+               rename(elem_WC=i), .) %>%
   mutate(N=replace_na(N, 0),
-         lnDens_m3=log(totDens/(area*depth))) %>%
-  filter(!is.na(meshRes))
-p <- ggplot(meshDir.sum) +
+         lnDens_m3=log(totDens/(area*depth)),
+         lnN_m3=log(N/(area*depth)))
+
+p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium")) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=lnDens_m3)) + 
   scale_fill_viridis_c() +
   facet_grid(.~meshRes)
-ggsave("figs/density_map_site.png", p, width=11, height=5, dpi=300)
-p <- ggplot(meshDir.sum %>% filter(N>3)) +
+ggsave("figs/density_map_site.png", p, width=13, height=5, dpi=300)
+meshDiff.df <- meshDir.sum %>%
+  mutate(meshRes=droplevels(meshRes)) %>%
+  full_join(meshDir.sum %>%
+              st_drop_geometry() %>%
+              filter(meshRes=="WeStCOMS2, 1h" & liceSpeedF=="Medium") %>%
+              rename(N_ref=N, totDens_ref=totDens, prUp_ref=prUploch, 
+                     lnDens_ref=lnDens_m3, lnN_ref=lnN_m3) %>%
+              select(elem_WC, ends_with("ref"))) %>%
+  filter(meshRes != "WeStCOMS2, 1h") %>%
+  filter(liceSpeedF=="Medium")%>%
+  mutate(N_ref=if_else(is.na(N_ref), 0L, N_ref),
+         lnN_ref=if_else(is.na(lnN_ref), 0, lnN_ref),
+         totDens_ref=if_else(is.na(totDens_ref), 0, totDens_ref)) %>%
+  mutate(N_diff=N-N_ref, 
+         lnN_diff=lnN_m3-lnN_ref,
+         totDens_diff=totDens-totDens_ref,
+         prUp_diff=prUploch-prUp_ref,
+         lnDens_diff=lnDens_m3-lnDens_ref)
+p <- meshDiff.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
+  geom_sf(colour=NA, aes(fill=lnDens_diff)) + 
+  scale_fill_gradient2() +
+  facet_grid(.~meshRes)
+ggsave("figs/density_diff_map_site.png", p, width=11, height=5, dpi=300)
+p <- meshDiff.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
+  geom_sf(colour=NA, aes(fill=lnN_diff/lnN_ref)) + 
+  scale_fill_gradient2() +
+  facet_grid(.~meshRes)
+ggsave("figs/densityN_diff_map_site.png", p, width=11, height=5, dpi=300)
+p <- meshDiff.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
+  geom_sf(colour=NA, aes(fill=prUp_diff)) + 
+  scale_fill_gradient2() +
+  facet_grid(.~meshRes)
+ggsave("figs/prUploch_diff_map_site.png", p, width=11, height=5, dpi=300)
+p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium") %>% filter(N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch)) + 
   fill_downloch +
   facet_grid(.~meshRes)
-ggsave("figs/prUploch_map_site.png", p, width=11, height=5, dpi=300)
-p <- ggplot(meshDir.sum %>% filter(N>3)) +
+ggsave("figs/prUploch_map_site.png", p, width=13, height=5, dpi=300)
+p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium") %>% filter(N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch, alpha=lnDens_m3)) + 
   fill_downloch +
   facet_grid(.~meshRes)
-ggsave("figs/prUploch_map_ALT_site.png", p, width=11, height=5, dpi=300)
+ggsave("figs/prUploch_map_ALT_site.png", p, width=13, height=5, dpi=300)
 
 
 meshDir.deep <- left_join(mesh.sf,

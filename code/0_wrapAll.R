@@ -16,6 +16,8 @@ rm(list=ls()); gc()
 
 
 # Make figures
+source("code/0000_temp_connectivityEDA.R")
+rm(list=ls()); gc()
 source("code/03_outputEDA.R")
 rm(list=ls()); gc()
 source("code/07_outputSiteEDA.R")

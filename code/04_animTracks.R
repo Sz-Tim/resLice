@@ -26,7 +26,8 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
   select(i, area, depth, mesh, lochRegion, geom) %>%
   full_join(., read_csv("data/loch_regions.csv"), by="lochRegion")
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")))
+  mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
+                           labels=c("Slow", "Medium", "Fast")))
 
 loc.df <- readRDS("out/00_processed/locations_grid.rds") %>%
   filter(status != 66) %>%
@@ -65,6 +66,7 @@ anim_save(glue("figs/vertDistribution_grid.gif"),
 anim <- loc.df %>%
   filter(age >= 6) %>%
   filter(depth < 20) %>%
+  filter(date < "2021-11-07") %>%
   ggplot(aes(-depth, colour=liceSpeedF)) +
   geom_density(adjust=1.5) + 
   scale_colour_viridis_d(end=0.9) +
@@ -78,8 +80,8 @@ anim_save(glue("figs/vertDistribution2_grid.gif"),
           fps=24, width=9, height=4, res=300, units="in")
 
 anim <- loc.df %>%
-  filter(timeRes=="1h") %>%
-  filter(age >= 12) %>%
+  # filter(timeRes=="1h") %>%
+  filter(age >= 24) %>%
   ggplot(aes(xyTot, colour=meshRes)) +
   geom_density(adjust=1.3) +
   scale_colour_brewer(type="div") +
@@ -93,7 +95,8 @@ anim_save(glue("figs/xy_movement_grid.gif"),
           fps=24, width=9, height=4, res=300, units="in")
 
 anim <- loc.df %>%
-  filter(age >= 12) %>%
+  filter(age >= 24) %>%
+  filter(date < "2021-11-07") %>%
   ggplot(aes(xyTot, colour=liceSpeedF)) +
   geom_density(adjust=1.3) +
   scale_colour_brewer(type="qual", palette=2) +
@@ -107,8 +110,8 @@ anim_save(glue("figs/xy_movement2_grid.gif"),
           fps=24, width=9, height=4, res=300, units="in")
 
 anim <- loc.df %>%
-  filter(timeRes=="1h") %>%
-  filter(age >= 12) %>%
+  # filter(timeRes=="1h") %>%
+  filter(age >= 24) %>%
   ggplot(aes(xyTot, colour=meshRes)) +
   geom_density(adjust=1.3) +
   scale_colour_brewer(type="div") +
@@ -122,7 +125,8 @@ anim_save(glue("figs/xy_ln_movement_grid.gif"),
           fps=24, width=9, height=4, res=300, units="in")
 
 anim <- loc.df %>%
-  filter(age >= 12) %>%
+  filter(age >= 24) %>%
+  filter(date < "2021-11-07") %>%
   ggplot(aes(xyTot, colour=liceSpeedF)) +
   geom_density() +
   scale_colour_brewer(type="qual", palette=2) +

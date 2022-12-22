@@ -31,7 +31,8 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
   do.call('rbind', .) %>%
   select(i, area, depth, mesh, geom)
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")))
+  mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
+                           labels=c("Slow", "Medium", "Fast")))
 sim_seq <- 1:nrow(sim_i)
 time.key <- read_csv("data/timeRes_key.csv") %>% 
   rename(fileHour=layer) %>%
@@ -53,6 +54,7 @@ elemAct.df <- map_dfr(sim_seq,
               select(mesh, timeRes, liceSpeed, liceSpeedF, sim))
 elemAct.sf <- left_join(mesh.sf, elemAct.df, by=c("mesh", "i"))
 write_sf(elemAct.sf, "out/00_processed/elementActivity_site.gpkg")
+rm(elemAct.df); rm(elemAct.sf); gc()
 
 
 
@@ -62,8 +64,8 @@ write_sf(elemAct.sf, "out/00_processed/elementActivity_site.gpkg")
 for(i in sim_seq) {
   dir(glue("{sim_i$outDir[i]}locs"), "locations_", full.names=T) %>%
     map_dfr(~read_delim(.x, delim=" ", col_names=T, show_col_types=F) %>%
-              select(-mesh, -startLocation, -startDate,
-                     -depthLayer, -degreeDays) %>%
+              select(-startLocation, -startDate, -depthLayer, -degreeDays) %>%
+              rename(meshParticle=mesh) %>%
               mutate(date=str_sub(.x,-12,-5))) %>%
     mutate(sim=i) %>%
     left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
@@ -98,8 +100,8 @@ for(i in sim_seq) {
               mutate(sim=i,
                      fdate=str_split_fixed(.x, "_", 3)[,2],
                      steps=str_remove(str_split_fixed(.x, "_", 3)[,3], ".dat"))) %>%
-    mutate(density=density/ifelse(sim_i$timeRes[i]=="1h", 1, 12),
-           cumulHours=as.numeric(steps)/if_else(sim_i$timeRes[i]=="1h", 30, 360),
+    mutate(#density=density/ifelse(sim_i$timeRes[i]=="1h", 1, 12),
+           cumulHours=as.numeric(steps)/if_else(sim_i$timeRes[i]=="1h", 24, 24),
            timeSim=as_datetime("2021-11-01 00:00:00") + cumulHours*60*60) %>%
     arrange(timeSim)
 }

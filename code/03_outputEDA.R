@@ -33,7 +33,8 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
   full_join(., read_csv("data/loch_regions.csv"), by="lochRegion")
 mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")),
+  mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
+                           labels=c("Slow", "Medium", "Fast")),
          sim=as.numeric(i))
 elemAct.sf <- st_read("out/00_processed/elementActivity_grid.gpkg") %>%
   mutate(liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)),
@@ -45,6 +46,10 @@ loc.df <- readRDS("out/00_processed/locations_grid.rds") %>%
                         levels=c("WeStCOMS2, 1h", "linnhe7, 1h", "linnhe7, 5min", "WeStCOMS2, 5min")),
          hour=hour(timeCalculated),
          date=date(timeCalculated))
+n_part.all <- length(unique(loc.df$ID))
+part.samp <- sample.int(n_part.all, 1e4)
+loc.df <- loc.df %>% filter(ID %in% part.samp)
+gc()
 # loc.sf <- st_as_sf(loc.df, coords=c("x", "y"), crs=27700)
 
 
@@ -89,47 +94,45 @@ ggsave("figs/mesh_depth.png", width=6, height=4, dpi=300)
 
 # vertical distribution ---------------------------------------------------
 
-# tendency to be deeper in WeStCOMS, but need to filter by bathymetric depth
-# since linnhe includes shallower areas
-loc.df %>% filter(age>=12, status != 66) %>%
+p <- loc.df %>% filter(age>=12, status != 66) %>%
   ggplot(aes(depth, colour=meshRes)) +
   geom_density() +
   scale_colour_brewer(type="div") +
   xlim(0, 15) +
   facet_grid(liceSpeedF~.)
-ggsave("figs/vertDist_grid.png", width=5, height=6, dpi=300)
+ggsave("figs/vertDist_grid.png", p, width=5, height=6, dpi=300)
 
-loc.df %>% filter(age>=12 & status != 66) %>%
-  ggplot(aes(depth, colour=liceSpeedF)) +
-  geom_density() +
-  scale_colour_viridis_d() +
-  xlim(0, 15) +
-  facet_grid(meshRes~.)
+# loc.df %>% filter(age>=12 & status != 66) %>%
+#   ggplot(aes(depth, colour=liceSpeedF)) +
+#   geom_density() +
+#   scale_colour_viridis_d() +
+#   xlim(0, 15) +
+#   facet_grid(meshRes~.)
 
 # By hour
-loc.df %>% filter(age>=12 & status != 66) %>%
+p <- loc.df %>% filter(age>=12 & status != 66) %>%
   ggplot(aes(depth, colour=hour, group=hour)) +
   geom_density() +
   xlim(0, 15) +
   col_hour +
   facet_grid(meshRes~liceSpeedF)
-ggsave("figs/vertDist_by_hour_grid.png", width=8, height=8, dpi=300)
+ggsave("figs/vertDist_by_hour_grid.png", p, width=8, height=8, dpi=300)
 
-loc.df %>% filter(age>=12 & status != 66) %>%
+p <- loc.df %>% filter(age>=12 & status != 66) %>%
   ggplot(aes(depth, colour=meshRes)) +
   geom_density() +
   xlim(0, 15) +
   scale_colour_brewer(type="div") +
   facet_grid(liceSpeedF~hour)
-ggsave("figs/vertDist_by_hour2_grid.png", width=17, height=5, dpi=300)
+ggsave("figs/vertDist_by_hour2_grid.png", p, width=17, height=5, dpi=300)
 
-loc.df %>% filter(age>=12 & status != 66) %>%
+p <- loc.df %>% filter(age>=12 & status != 66) %>%
   ggplot(aes(depth, linetype=meshRes, colour=liceSpeedF, group=sim)) +
   geom_density() +
   xlim(0, 15) +
   scale_colour_viridis_d(end=0.9) +
   facet_wrap(~hour, ncol=6)
-ggsave("figs/vertDist_by_hour3_grid.png", width=12, height=9, dpi=300)
+ggsave("figs/vertDist_by_hour3_grid.png", p ,width=12, height=9, dpi=300)
 
 
 
@@ -137,11 +140,11 @@ ggsave("figs/vertDist_by_hour3_grid.png", width=12, height=9, dpi=300)
 
 # tracks ------------------------------------------------------------------
 
-part.samp <- sample(unique(loc.df$ID), 500)
-loc.df %>% filter(ID %in% part.samp) %>%
-  ggplot(aes(x, y, group=ID)) +
-  geom_path(alpha=0.25) + 
-  facet_grid(meshRes~liceSpeedF)
+# part.samp <- sample(unique(loc.df$ID), 500)
+# loc.df %>% filter(ID %in% part.samp) %>%
+#   ggplot(aes(x, y, group=ID)) +
+#   geom_path(alpha=0.25) + 
+#   facet_grid(meshRes~liceSpeedF)
 
 
 
@@ -151,13 +154,15 @@ loc.df %>% filter(ID %in% part.samp) %>%
 # mesh exits --------------------------------------------------------------
 
 # lice more likely to exit loch in WeStCOMS, at faster sink/swim speeds
-loc.df %>% 
-  group_by(meshRes, liceSpeedF) %>% 
-  summarise(propExit=sum(status==66)/n_distinct(ID)) %>% 
+p <- loc.df %>% 
+  group_by(meshRes, liceSpeedF, ID) %>% 
+  summarise(exited=any(mesh==1)) %>% 
+  group_by(meshRes, liceSpeedF) %>%
+  summarise(propExit=mean(exited)) %>%
   ggplot(aes(liceSpeedF, propExit, colour=meshRes, group=meshRes)) + 
   scale_colour_brewer(type="div") +
   geom_point() + geom_path()
-ggsave("figs/exits_grid.png", width=5, height=3, dpi=300)
+ggsave("figs/exits_grid.png", p, width=5, height=3, dpi=300)
 
 # confirming exits occur at open boundaries only
 loc.df %>%
@@ -255,10 +260,12 @@ ggsave("figs/prFloat_mesh_by_speed_grid.png", p, width=8, height=10, dpi=300)
 
 # maps --------------------------------------------------------------------
 
+bbox <- st_bbox(mesh.fp)
 for(i in 1:nrow(sim_i)) {
   p <- loc.df %>%
     filter(age>=12 & status != 66) %>%
     filter(sim==i) %>%
+    filter(between(x, bbox$xmin, bbox$xmax), between(y, bbox$ymin, bbox$ymax)) %>%
     ggplot(aes(x,y, alpha=density, colour=depth)) + 
     geom_point(size=0.1, shape=1) + 
     scale_colour_viridis_c(direction=-1, option="D", limits=c(0,20), na.value="#000033") +
@@ -276,8 +283,9 @@ for(i in 1:nrow(sim_i)) {
 # velocities --------------------------------------------------------------
 
 velocity.df <- loc.df %>%
-  select(ID, timeCalculated, age, status, x, y, density, depth, 
+  select(ID, timeCalculated, age, status, x, y, density, depth, meshParticle,
          sim, mesh, meshRes, elem) %>%
+  mutate(meshParticle=if_else(meshParticle==0, mesh, "WeStCOMS2")) %>%
   arrange(sim, timeCalculated, ID) %>%
   group_by(ID, sim) %>%
   mutate(x_m1=lag(x), 
@@ -292,11 +300,15 @@ velocity.df <- loc.df %>%
   filter(age>=12 & status != 66) %>%
   left_join(., sim_i %>% select(sim, mesh, liceSpeedF)) %>%
   left_join(., mesh.sf %>% st_drop_geometry() %>% 
-              select(i, mesh, bearing, depth) %>% 
-              rename(elem=i, lochDir=bearing, meshDepth=depth),
-            by=c("mesh", "elem")) %>%
-  mutate(downloch=cos(lochDir-bearing)) # -1: uploch, 1: downloch
-
+              select(i, mesh, bearing) %>% 
+              rename(meshParticle=mesh, elem=i, lochDir=bearing),
+            by=c("meshParticle", "elem")) %>%
+  mutate(downloch=cos(lochDir-bearing)) %>% # -1: uploch, 1: downloch
+  st_as_sf(coords=c("x", "y"), crs=27700, remove=F) %>%
+  st_join(mesh.sf %>% filter(mesh=="WeStCOMS2") %>% 
+            select(i, depth) %>% rename(elem_WC=i, meshDepth=depth)) %>%
+  st_drop_geometry() %>% 
+  filter(complete.cases(.))
 
 # velocity.df %>%
 #   filter(ID %% 500 == 0) %>%
@@ -370,32 +382,61 @@ p <- velocity.df %>%
 ggsave("figs/direction_map_grid.png", p, width=9, height=11, dpi=300)
 
 
-
-meshDir.sum <- left_join(mesh.sf,
-                         velocity.df %>%
-                           filter(liceSpeedF=="Medium") %>%
-                           group_by(mesh, meshRes, elem) %>%
-                           summarise(N=n(),
-                                     totDens=sum(density),
-                                     prUploch=mean(downloch<0)) %>%
-                           ungroup %>% rename(i=elem),
-                         by=c("mesh", "i")) %>%
+meshDir.sum <- velocity.df %>%
+  group_by(mesh, meshRes, liceSpeedF, elem_WC) %>%
+  summarise(N=n(), 
+            totDens=sum(density), 
+            prUploch=mean(downloch<0)) %>%
+  ungroup %>%
+  inner_join(mesh.sf %>% 
+               filter(mesh=="WeStCOMS2") %>% 
+               select(i, depth, area) %>% 
+               rename(elem_WC=i), .) %>%
   mutate(N=replace_na(N, 0),
-         lnDens_m3=log(totDens/(area*depth))) %>%
-  filter(!is.na(meshRes))
-p <- ggplot(meshDir.sum) +
+         lnDens_m3=log(totDens/(area*depth)))
+
+p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium")) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=lnDens_m3)) + 
   scale_fill_viridis_c() +
   facet_grid(.~meshRes)
 ggsave("figs/density_map_grid.png", p, width=13, height=5, dpi=300)
-p <- ggplot(meshDir.sum %>% filter(N>10)) +
+meshDiff.df <- meshDir.sum %>%
+  mutate(meshRes=droplevels(meshRes)) %>%
+  full_join(meshDir.sum %>%
+              st_drop_geometry() %>%
+              filter(meshRes=="WeStCOMS2, 1h" & liceSpeedF=="Medium") %>%
+              rename(N_ref=N, totDens_ref=totDens, prUp_ref=prUploch, lnDens_ref=lnDens_m3) %>%
+              select(elem_WC, ends_with("ref"))) %>%
+  filter(meshRes != "WeStCOMS2, 1h") %>%
+  filter(liceSpeedF=="Medium")%>%
+  mutate(N_ref=if_else(is.na(N_ref), 0L, N_ref),
+         totDens_ref=if_else(is.na(totDens_ref), 0, totDens_ref)) %>%
+  mutate(N_diff=N-N_ref, 
+         totDens_diff=totDens-totDens_ref,
+         prUp_diff=prUploch-prUp_ref,
+         lnDens_diff=lnDens_m3-lnDens_ref)
+p <- meshDiff.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
+  geom_sf(colour=NA, aes(fill=lnDens_diff)) + 
+  scale_fill_gradient2() +
+  facet_grid(.~meshRes)
+ggsave("figs/density_diff_map_grid.png", p, width=11, height=5, dpi=300)
+p <- meshDiff.df %>%
+  ggplot() +
+  geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
+  geom_sf(colour=NA, aes(fill=prUp_diff)) + 
+  scale_fill_gradient2() +
+  facet_grid(.~meshRes)
+ggsave("figs/prUploch_diff_map_grid.png", p, width=11, height=5, dpi=300)
+p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium") %>% filter(N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch)) + 
   fill_downloch +
   facet_grid(.~meshRes)
 ggsave("figs/prUploch_map_grid.png", p, width=13, height=5, dpi=300)
-p <- ggplot(meshDir.sum %>% filter(N>10)) +
+p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium") %>% filter(N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch, alpha=lnDens_m3)) + 
   fill_downloch +
@@ -403,42 +444,117 @@ p <- ggplot(meshDir.sum %>% filter(N>10)) +
 ggsave("figs/prUploch_map_ALT_grid.png", p, width=13, height=5, dpi=300)
 
 
-meshDir.deep <- left_join(mesh.sf,
-                          velocity.df %>%
-                            filter(liceSpeedF=="Medium") %>%
-                            mutate(deep=case_when(depth_m1 <= 2 ~ "0-2",
-                                                  between(depth_m1, 2, 5) ~ "2-5",
-                                                  between(depth_m1, 5, 10) ~ "5-10",
-                                                  depth_m1 > 10 ~ ">10")) %>%
-                            group_by(mesh, meshRes, elem, deep) %>%
-                            summarise(N=n(),
-                                      totDens=sum(density),
-                                      prUploch=mean(downloch<0)) %>%
-                            ungroup %>% rename(i=elem),
-                          by=c("mesh", "i")) %>%
+meshDir.deep <- velocity.df %>%
+  mutate(deep=case_when(depth_m1 <= 2 ~ "0-2",
+                        between(depth_m1, 2, 5) ~ "2-5",
+                        between(depth_m1, 5, 10) ~ "5-10",
+                        depth_m1 > 10 ~ ">10")) %>%
+  group_by(mesh, meshRes, liceSpeedF, deep, elem_WC) %>%
+  summarise(N=n(), 
+            totDens=sum(density), 
+            prUploch=mean(downloch<0)) %>%
+  ungroup %>%
+  inner_join(mesh.sf %>% 
+               filter(mesh=="WeStCOMS2") %>% 
+               select(i, depth, area) %>% 
+               rename(elem_WC=i), .) %>%
   mutate(N=replace_na(N, 0),
          lnDens_m3=case_when(deep=="0-2" ~ log(totDens/(area*pmin(depth, 2))),
                              deep=="2-5" ~ log(totDens/(area*pmin(depth-2, 3))),
                              deep=="5-10" ~ log(totDens/(area*pmin(depth-5, 5))),
                              deep==">10" ~ log(totDens/(area*pmin(depth-10, 1)))),
-         deep=factor(deep, levels=c("0-2", "2-5", "5-10", ">10"))) %>%
-  filter(!is.na(meshRes))
+         deep=factor(deep, levels=c("0-2", "2-5", "5-10", ">10"))) 
 
-p <- ggplot(meshDir.deep %>% filter(!is.na(deep))) +
+p <- ggplot(meshDir.deep %>% filter(liceSpeedF=="Medium") %>% filter(!is.na(deep))) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=lnDens_m3)) + 
   scale_fill_viridis_c() +
   facet_grid(deep~meshRes)
 ggsave("figs/density_map_depthStrat_grid.png", p, width=14, height=14, dpi=300)
-p <- ggplot(meshDir.deep %>% filter(!is.na(deep), N>10)) +
+p <- ggplot(meshDir.deep %>% filter(liceSpeedF=="Medium") %>% filter(!is.na(deep), N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch)) + 
   fill_downloch +
   facet_grid(deep~meshRes)
 ggsave("figs/prUploch_map_depthStrat_grid.png", p, width=14, height=14, dpi=300)
-p <- ggplot(meshDir.deep %>% filter(!is.na(deep), N>10)) +
+p <- ggplot(meshDir.deep %>% filter(liceSpeedF=="Medium") %>% filter(!is.na(deep), N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch, alpha=lnDens_m3)) + 
   fill_downloch +
   facet_grid(deep~meshRes)
 ggsave("figs/prUploch_map_depthStrat_ALT_grid.png", p, width=14, height=14, dpi=300)
+
+
+
+
+
+
+
+# tidal front -------------------------------------------------------------
+
+fronts.sf <- st_read("data/salinityPulse_linnhe_1h.gpkg")
+
+velocity.df %>% 
+  filter(meshRes=="linnhe7, 1h", liceSpeedF=="Medium") %>%
+  # filter(timeCalculated < "2021-11-03") %>%
+  select(mesh, meshRes, liceSpeedF, ID, timeCalculated, x, y, dx, dy, dz, dXY, downloch) %>%
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(fronts.sf, .) %>%
+  filter(timeStart==timeCalculated) %>%
+  group_by(timeStart) %>%
+  summarise(dz_mn=mean(dz), 
+            downloch=mean(downloch)) %>%
+  ggplot() + geom_sf(data=mesh.fp, fill=NA) + 
+  geom_sf(aes(fill=downloch), colour=NA) + 
+  fill_downloch + facet_wrap(~timeStart, ncol=24)
+
+
+velocity.df %>% 
+  filter(meshRes=="linnhe7, 1h", liceSpeedF=="Medium") %>%
+  # filter(timeCalculated < "2021-11-03") %>%
+  select(mesh, meshRes, liceSpeedF, ID, timeCalculated, x, y, dx, dy, dz, dXY, downloch) %>%
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(fronts.sf, .) %>%
+  filter(timeStart==timeCalculated) %>%
+  ggplot(aes(timeStart, downloch, group=timeStart)) + geom_boxplot()
+
+velocity.df %>% 
+  filter(meshRes=="linnhe7, 1h", liceSpeedF=="Medium") %>%
+  # filter(timeCalculated < "2021-11-03") %>%
+  select(mesh, meshRes, liceSpeedF, ID, timeCalculated, x, y, dx, dy, dz, dXY, downloch) %>%
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(fronts.sf, .) %>%
+  filter(timeStart==timeCalculated) %>%
+  ggplot(aes(downloch, y=factor(timeStart))) + 
+  ggridges::geom_density_ridges(alpha=0.5)
+
+velocity.df %>% 
+  filter(meshRes=="linnhe7, 1h", liceSpeedF=="Medium") %>%
+  # filter(timeCalculated < "2021-11-03") %>%
+  select(mesh, meshRes, liceSpeedF, ID, timeCalculated, x, y, depth, dx, dy, dz, dXY, downloch) %>%
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(fronts.sf, .) %>%
+  filter(timeStart==timeCalculated) %>%
+  ggplot(aes(depth, y=factor(timeStart))) + 
+  ggridges::geom_density_ridges(alpha=0.5) +
+  facet_grid(.~downloch>0) +
+  xlim(0, 25)
+
+velocity.df %>% 
+  filter(meshRes=="linnhe7, 1h", liceSpeedF=="Medium") %>%
+  # filter(timeCalculated < "2021-11-03") %>%
+  select(mesh, meshRes, liceSpeedF, ID, timeCalculated, x, y, depth, dx, dy, dz, dXY, downloch) %>%
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(fronts.sf, .) %>%
+  filter(timeStart==timeCalculated) %>%
+  mutate(direction=if_else(downloch>0, "downloch", "uploch")) %>%
+  group_by(timeStart, direction) %>%
+  summarise(N=n()) %>%
+  ggplot(aes(timeStart, y=N, group=timeStart, fill=direction)) + 
+  geom_bar(position="fill", stat="identity") +
+  scale_fill_manual(values=c(scales::muted("blue"), scales::muted("red")))
+  
+
+velocity.df %>%
+  ggplot(aes(depth, fill=downloch>0)) +
+  geom_density(alpha=0.5)

@@ -26,7 +26,8 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
   select(i, area, depth, mesh, lochRegion, geom) %>%
   full_join(., read_csv("data/loch_regions.csv"), by="lochRegion")
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")))
+  mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
+                           labels=c("Slow", "Medium", "Fast")))
 
 loc.df <- readRDS("out/00_processed/locations_site.rds") %>%
   filter(status != 66) %>%
@@ -184,6 +185,7 @@ dens.sf <- loc.df %>%
   mutate(density=log(density/(area*depth)))
 rm(loc.df); gc()
 anim <- dens.sf %>%
+  filter(timeCalculated < "2021-11-03 00:00:00") %>%
   ggplot() + 
   geom_sf(data=mesh.fp, fill=NA, colour="grey30") +
   geom_sf(aes(fill=density), colour=NA) + 
@@ -323,7 +325,11 @@ foreach(i=1:nrow(sim_i),
   #   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
   #   ggtitle(paste0(glue("{sim_i$mesh[i]}, {sim_i$timeRes[i]}, {sim_i$liceSpeedF[i]}"),
   #                  ". {closest_state}"))
+  
+  bbox <- st_bbox(mesh.fp)
+  
   anim <- loc.ls[[i]] %>%
+    filter(between(x, bbox$xmin, bbox$xmax), between(y, bbox$ymin, bbox$ymax)) %>%
     ggplot() +
     geom_sf(data=mesh.fp, fill="grey10", colour=NA) +
     geom_point(aes(x, y, colour=depth, alpha=density, group=ID), size=0.5) +
@@ -400,7 +406,10 @@ foreach(i=seq_along(vel.ls),
           info <- tibble(liceSpeedF=vel.ls[[i]]$liceSpeedF[1],
                          depth=vel.ls[[i]]$depth[1])
           
+          bbox <- st_bbox(mesh.fp)
+          
           anim <- vel.ls[[i]] %>%
+            filter(between(x, bbox$xmin, bbox$xmax), between(y, bbox$ymin, bbox$ymax)) %>%
             ggplot() +
             geom_sf(data=mesh.fp, fill="grey10", colour=NA) +
             geom_point(aes(x, y, colour=downloch, alpha=density, group=ID), size=0.25) +
@@ -418,11 +427,6 @@ foreach(i=seq_along(vel.ls),
         }
 stopCluster(cl)
 
-
-
-# TODO: In QGIS, self-NNJoin each layer, calculated abs(salinity - join_salinity)
-# then set threshold + buffer to define tidal pulse. Might work... Not sure how 
-# to automate in QGIS, but there could be a way in sf
 
 # 
 # 

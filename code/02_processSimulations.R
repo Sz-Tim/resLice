@@ -31,7 +31,8 @@ mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
   do.call('rbind', .) %>%
   select(i, area, depth, mesh, geom)
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
-  mutate(liceSpeedF=factor(liceSpeed, labels=c("Slow", "Medium", "Fast")))
+  mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
+                           labels=c("Slow", "Medium", "Fast")))
 sim_seq <- 1:nrow(sim_i)
 time.key <- read_csv("data/timeRes_key.csv") %>% 
   rename(fileHour=layer) %>%
@@ -62,8 +63,8 @@ write_sf(elemAct.sf, "out/00_processed/elementActivity_grid.gpkg")
 for(i in sim_seq) {
   dir(glue("{sim_i$outDir[i]}locs"), "locations_", full.names=T) %>%
     map_dfr(~read_delim(.x, delim=" ", col_names=T, show_col_types=F) %>%
-              select(-mesh, -startLocation, -startDate,
-                     -depthLayer, -degreeDays) %>%
+              select(-startLocation, -startDate, -depthLayer, -degreeDays) %>%
+              rename(meshParticle=mesh) %>%
               mutate(date=str_sub(.x,-12,-5))) %>%
     mutate(sim=i) %>%
     left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
