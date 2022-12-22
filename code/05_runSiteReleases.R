@@ -80,7 +80,7 @@ properties.ls <- map(
                           dt=sim.i$dt[.x],
                           stepsPerStep=sim.i$stepsPerStep[.x],
                           releaseInterval=sim.i$releaseInterval[.x],
-                          nparts=5,
+                          nparts=20,
                           viableDegreeDays=sim.i$viableDegreeDays[.x],
                           maxDegreeDays=sim.i$maxDegreeDays[.x],
                           vertSwimSpeedMean=sim.i$liceSpeed[.x],
@@ -90,7 +90,8 @@ properties.ls <- map(
                           variableDiffusion="false",
                           recordMovement="false",
                           recordConnectivity="true",
-                          connectivityInterval=ifelse(sim.i$timeRes[.x]=="1h", 1, 12)))
+                          connectivityInterval=ifelse(sim.i$timeRes[.x]=="1h", 1, 12),
+                          verboseSetUp="true"))
 walk(sim_seq, 
      ~cat(properties.ls[[.x]] %>% 
             str_replace_all("\\\\", "\\\\\\\\") %>%

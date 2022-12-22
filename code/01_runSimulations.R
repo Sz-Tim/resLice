@@ -78,7 +78,7 @@ properties.ls <- map(
                           dt=sim.i$dt[.x],
                           stepsPerStep=sim.i$stepsPerStep[.x],
                           releaseInterval=sim.i$releaseInterval[.x],
-                          nparts=1,
+                          nparts=3,
                           viabletime=sim.i$viabletime[.x],
                           maxParticleAge=sim.i$maxParticleAge[.x],
                           vertSwimSpeedMean=sim.i$liceSpeed[.x],
