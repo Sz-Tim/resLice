@@ -36,7 +36,7 @@ dirs <- switch(get_os(),
                           mesh="/home/sa04ts/FVCOM_meshes",
                           hydro.linnhe="/media/archiver/common/sa04ts-temp/linnhe7",
                           hydro.westcoms="/media/archiver/common/sa04ts-temp/WeStCOMS2",
-                          jar=glue("{getwd()}/jar"),
+                          jar=glue("/home/sa04ts/biotracker/"),
                           out=glue("{getwd()}/out/siteConnectReps_init{initDensity}")))
 
 sim.i <- expand_grid(mesh=c("linnhe7", "WeStCOMS2"),
