@@ -14,19 +14,22 @@
 
 library(tidyverse); library(ncdf4); library(sf); library(glue)
 
-domain <- c("linnhe", "westcoms")[2]
+domain <- c("linnhe", "WeStCOMS2_linnhe", "WeStCOMS2_noLinnhe")[3]
 
 westcoms.dir <- "D:/hydroOut/WeStCOMS2/Archive/netcdf_2021/"
-hiRes.dir <- "W:/common/sa04ts-temp/linnhe7/"
-hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf/")
-hiRes_5min.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_mf_5min/")
+hiRes.dir <- "D:hydroOut/linnhe7/"
+hiRes_1h.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_riv/")
+hiRes_5min.dir <- paste0(hiRes.dir, "linnhe7_tides_met_tsobc_riv_5min/")
 
 if(domain=="linnhe") {
   day2 <- nc_open(dir(hiRes_1h.dir, "0002.nc", full.names=T))
   open_elems <- read_csv("data/linnhe_mesh_openBoundaryElems.csv")
-} else if(domain=="westcoms") {
+} else if(domain=="WeStCOMS2_linnhe") {
   day2 <- nc_open(dir(westcoms.dir, "20211102", full.names=T))
   open_elems <- read_csv("data/westcoms2-linnhe_mesh_openBoundaryElems.csv")
+} else if(domain=="WeStCOMS2_noLinnhe") {
+  day2 <- nc_open(dir(westcoms.dir, "20211102", full.names=T))
+  open_elems <- read_csv("data/westcoms2-linnhe_elems.csv")
 }
 
 
@@ -89,15 +92,11 @@ mesh.vars <- list(
 
 
 
-
 # create mesh.nc ----------------------------------------------------------
 
 mesh.nc <- nc_create(glue("data/{domain}_mesh.nc"), mesh.vars)
 iwalk(names(mesh.vars), ~ncvar_put(mesh.nc, .x, nc[[.x]]))
 nc_close(mesh.nc)
-
-
-
 
 
 
@@ -124,7 +123,6 @@ write_sf(mesh.footprint, "data/linnhe_mesh_footprint.gpkg")
 
 
 
-
 # confirm -----------------------------------------------------------------
 
 mesh.nc <- nc_open(glue("data/{domain}_mesh.nc"))
@@ -138,3 +136,6 @@ head(ncvar_get(mesh.nc, "boundaryNodesOpen"))
 ncvar_get(mesh.nc, "siglay")
 
 nc_close(mesh.nc)
+
+
+
