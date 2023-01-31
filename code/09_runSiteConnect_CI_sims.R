@@ -19,10 +19,10 @@ source("code/00_fn.R")
 # define parameters -------------------------------------------------------
 
 overwrite_jar <- T
-cores <- 11
+cores <- ifelse(get_os()=="windows", 11, 40)
 nDays <- 7
 initDensity <- c("Scaled", "Uniform")[2]
-nReps <- 20
+nReps <- 2
 nParts_hr_site <- 20
 
 dirs <- switch(get_os(),
@@ -88,7 +88,7 @@ for(i in sim_seq) {
       mesh2=normalizePath(paste0(dirs$mesh, "/WeStCOMS2_mesh.nc")),
       sitefile="..\\..\\..\\..\\data\\fishFarmSites.tsv",
       siteDensityPath=ifelse(sim.i$siteDensity[i]=="", "",
-                             normalizePath(paste0("..\\..\\..\\..\\data\\", sim.i$siteDensity[i]))), 
+                             paste0("..\\..\\..\\..\\data\\", sim.i$siteDensity[i])), 
       numberOfDays=sim.i$nDays[i],
       dt=sim.i$dt[i],
       stepsPerStep=sim.i$stepsPerStep[i],
@@ -108,11 +108,18 @@ for(i in sim_seq) {
       connectivityInterval=ifelse(sim.i$timeRes[i]=="1h", 1, 12),
       verboseSetUp="true"
     )
-   
-    cat(properties.ls[[ij]] %>% 
-          str_replace_all("\\\\", "\\\\\\\\") %>%
-          str_replace_all("\\ ", "\\\\\\\\ "), 
-        "\n", file=glue("{dirs$out}/sim_{sim.i$i[i]}_{j}.properties"))
+    if(get_os()=="windows") {
+      cat(properties.ls[[ij]] %>% 
+            str_replace_all("\\\\", "\\\\\\\\") %>%
+            str_replace_all("\\ ", "\\\\\\\\ "), 
+          "\n", file=glue("{dirs$out}/sim_{sim.i$i[i]}_{j}.properties"))
+    } else {
+      cat(properties.ls[[ij]] %>% 
+            str_replace_all("\\\\", "//") %>%
+            str_replace_all("\\ ", "\\\\\\\\ "), 
+          "\n", file=glue("{dirs$out}/sim_{sim.i$i[i]}_{j}.properties"))
+    }
+    
     
     ij <- ij + 1 
   }
