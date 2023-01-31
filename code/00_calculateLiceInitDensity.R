@@ -140,5 +140,16 @@ sites.i %>% st_drop_geometry() %>%
   select(marineScotlandSiteId, easting, northing) %>%
   write_tsv("../resLice/data/fishFarmSites.tsv", col_names=F)
 
+sites_3yr <- fish.i %>% st_drop_geometry() %>%
+  mutate(date=dmy(year)) %>%
+  filter(date > "2018-11-01", date < "2021-12-01") %>%
+  group_by(marineScotlandSiteId) %>%
+  filter(any(actualBiomassOnSiteTonnes > 0)) %>%
+  ungroup
+sites.i %>% st_drop_geometry() %>%
+  filter(marineScotlandSiteId %in% unique(sites_3yr$marineScotlandSiteId)) %>%
+  select(marineScotlandSiteId, easting, northing) %>%
+  write_tsv("../resLice/data/fishFarmSites_all3yr.tsv", col_names=F)
+
 
 

@@ -22,8 +22,8 @@ overwrite_jar <- T
 cores <- ifelse(get_os()=="windows", 11, 50)
 nDays <- 7
 initDensity <- c("Scaled", "Uniform")[2]
-nReps <- 20
-nParts_hr_site <- 20
+nReps <- 25
+nParts_hr_site <- 5
 
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
@@ -86,7 +86,7 @@ for(i in sim_seq) {
       minchVersion=str_sub(sim.i$mesh[i], -1, -1),
       datadir2=paste0(normalizePath(sim.i$hydroDir2[i]), sep),
       mesh2=normalizePath(paste0(dirs$mesh, "/WeStCOMS2_mesh.nc")),
-      sitefile="..\\..\\..\\..\\data\\fishFarmSites.tsv",
+      sitefile="..\\..\\..\\..\\data\\fishFarmSites_all3yr.tsv",
       siteDensityPath=ifelse(sim.i$siteDensity[i]=="", "",
                              paste0("..\\..\\..\\..\\data\\", sim.i$siteDensity[i])), 
       numberOfDays=sim.i$nDays[i],
@@ -115,8 +115,7 @@ for(i in sim_seq) {
           "\n", file=glue("{dirs$out}/sim_{sim.i$i[i]}_{j}.properties"))
     } else {
       cat(properties.ls[[ij]] %>% 
-            str_replace_all("\\\\", "//") %>%
-            str_replace_all("\\ ", "\\\\\\\\ "), 
+            str_replace_all("\\\\", "//"), 
           "\n", file=glue("{dirs$out}/sim_{sim.i$i[i]}_{j}.properties"))
     }
     
