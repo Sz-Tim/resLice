@@ -124,7 +124,7 @@ for(i in sim_seq) {
 
 file.copy(glue("{dirs$jar}/particle_track.jar"), "jar/particle_track.jar", 
           overwrite=overwrite_jar)
-file.copy(if_else(get_os()=="windows", "code/runSimReps_pc.sh", "code/runSims_smn.sh"), 
+file.copy(if_else(get_os()=="windows", "code/runSimReps_pc.sh", "code/runSimReps_smn.sh"), 
           glue("{dirs$out}/run_local.sh"), overwrite=T)
 for(i in sim_seq) {
   for(j in rep_seq) {
