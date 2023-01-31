@@ -11,13 +11,15 @@
 library(tidyverse); library(glue); library(lubridate); library(sf)
 source("code/00_fn.R")
 
+initDensity <- c("Scaled", "Uniform")[2]
+
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
                             mesh="D:/hydroOut/",
-                            out=glue("{getwd()}/out/siteRelease/")),
+                            out=glue("{getwd()}/out/siteRelease_init{initDensity}/")),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
-                          out=glue("{getwd()}/out/siteRelease/")))
+                          out=glue("{getwd()}/out/siteRelease_init{initDensity}/")))
 
 
 
@@ -36,11 +38,11 @@ sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
   mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
                            labels=c("Slow", "Medium", "Fast")),
          sim=as.numeric(i))
-elemAct.sf <- st_read("out/00_processed/elementActivity_site.gpkg") %>%
+elemAct.sf <- st_read(glue("out/00_processed/elementActivity_site_init{initDensity}.gpkg")) %>%
   mutate(liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)),
          meshRes=factor(paste0(mesh, ", ", timeRes),
                         levels=c("WeStCOMS2, 1h", "linnhe7, 1h", "linnhe7, 5min", "WeStCOMS2, 5min")))
-loc.df <- readRDS("out/00_processed/locations_site.rds") %>%
+loc.df <- readRDS(glue("out/00_processed/locations_site_init{initDensity}.rds")) %>%
   mutate(liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)),
          meshRes=factor(paste0(mesh, ", ", timeRes),
                         levels=c("WeStCOMS2, 1h", "linnhe7, 1h", "linnhe7, 5min", "WeStCOMS2, 5min")),

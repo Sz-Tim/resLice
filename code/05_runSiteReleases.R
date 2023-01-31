@@ -21,6 +21,7 @@ source("code/00_fn.R")
 overwrite_jar <- T
 cores <- 11
 nDays <- 7
+initDensity <- c("Scaled", "Uniform")[2]
 
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
@@ -28,13 +29,13 @@ dirs <- switch(get_os(),
                             hydro.linnhe="D:/hydroOut/linnhe7/linnhe7_tides_met_tsobc_riv",
                             hydro.westcoms="D:/hydroOut/WeStCOMS2/Archive",
                             jar="C:/Users/sa04ts/OneDrive - SAMS/Projects/OffAqua/particle_track/out",
-                            out=glue("{getwd()}/out/siteRelease")),
+                            out=glue("{getwd()}/out/siteRelease_init{initDensity}")),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
                           hydro.linnhe="/media/archiver/common/sa04ts-temp/linnhe7",
                           hydro.westcoms="/media/archiver/common/sa01da-work/WeStCOMS2/Archive",
                           jar=glue("{getwd()}/jar"),
-                          out=glue("{getwd()}/out/siteRelease")))
+                          out=glue("{getwd()}/out/siteRelease_init{initDensity}")))
 
 sim.i <- expand_grid(mesh=c("linnhe7", "WeStCOMS2"),
                      timeRes=c("1h", "5min"),
@@ -54,6 +55,9 @@ sim.i <- expand_grid(mesh=c("linnhe7", "WeStCOMS2"),
          releaseInterval=1,
          viableDegreeDays=40,
          maxDegreeDays=150)
+if(initDensity=="Uniform") {
+  sim.i$siteDensity <- ""
+}
 write_csv(sim.i, glue("{dirs$out}/sim_i.csv"))  
 sim_seq <- 1:nrow(sim.i)
 
@@ -75,7 +79,8 @@ properties.ls <- map(
                           datadir2=paste0(normalizePath(sim.i$hydroDir2[.x]), sep),
                           mesh2=normalizePath(paste0(dirs$mesh, "/WeStCOMS2_mesh.nc")),
                           sitefile="..\\..\\..\\data\\fishFarmSites.tsv",
-                          siteDensityPath=paste0("..\\..\\..\\data\\", sim.i$siteDensity[.x]), 
+                          siteDensityPath=ifelse(sim.i$siteDensity[.x]=="", "",
+                                                 paste0("..\\..\\..\\data\\", sim.i$siteDensity[.x])), 
                           numberOfDays=sim.i$nDays[.x],
                           dt=sim.i$dt[.x],
                           stepsPerStep=sim.i$stepsPerStep[.x],

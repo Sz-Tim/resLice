@@ -12,10 +12,10 @@ theme_set(theme_classic())
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
                             mesh="D:/hydroOut/",
-                            out=glue("{getwd()}/out/siteRelease/")),
+                            out=glue("{getwd()}/out/siteRelease_initUniform/")),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
-                          out=glue("{getwd()}/out/siteRelease/")))
+                          out=glue("{getwd()}/out/siteRelease_initUniform/")))
 
 mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
@@ -29,7 +29,7 @@ sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
   mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
                            labels=c("Slow", "Medium", "Fast")))
 
-loc.df <- readRDS("out/00_processed/locations_site.rds") %>%
+loc.df <- readRDS("out/00_processed/locations_site_initUniform.rds") %>%
   filter(status != 66) %>%
   mutate(liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)),
          meshRes=factor(paste0(mesh, ", ", timeRes),
@@ -48,6 +48,36 @@ loc.df <- loc.df %>%
 interp <- 3
 
 
+
+
+interp <- 1
+dens.sf <- loc.df %>% 
+  filter(liceSpeedF=="Medium") %>%
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(mesh.sf %>% filter(mesh=="WeStCOMS2") %>% select(i)) %>%
+  st_drop_geometry() %>%
+  group_by(sim, meshRes, liceSpeedF, timeCalculated, i) %>%
+  summarise(density=sum(density), N=n()) %>%
+  ungroup %>%
+  inner_join(mesh.sf %>% filter(mesh=="WeStCOMS2"), .) %>%
+  mutate(density=log1p(density/(area*depth)))
+anim <- dens.sf %>%
+  ggplot() + 
+  geom_sf(data=mesh.fp, fill=NA, colour="grey30") +
+  geom_sf(aes(fill=density), colour=NA) + 
+  scale_fill_viridis_c() +
+  transition_states(timeCalculated, wrap=F, transition_length=0, state_length=1) +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank(),
+        legend.position="bottom") +
+  ggtitle( "Lice density: {closest_state}")
+anim_save(glue("figs/density_slower_site.gif"),
+          anim, nframes=interp*length(hours)*length(days),
+          fps=12, width=7, height=4, res=300, units="in")
+rm(dens.sf); gc()
+
+
+
 anim <- loc.df %>%
   filter(age >= 6) %>%
   filter(depth < 20) %>%
@@ -63,23 +93,23 @@ anim_save(glue("figs/vertDistribution_site.gif"),
           anim, nframes=interp*length(hours)*length(days),
           fps=24, width=9, height=4, res=300, units="in")
 
-anim <- loc.df %>%
-  filter(age >= 6) %>%
-  filter(depth < 20) %>%
-  ggplot(aes(-depth, colour=liceSpeedF)) +
-  geom_density(adjust=1.5) + 
-  scale_colour_viridis_d(end=0.9) +
-  transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
-  ggtitle( "{closest_state}") +
-  facet_grid(.~meshRes) +
-  theme(legend.position="bottom") +
-  coord_flip()
-anim_save(glue("figs/vertDistribution2_site.gif"),
-          anim, nframes=interp*length(hours)*length(days),
-          fps=24, width=9, height=4, res=300, units="in")
+# anim <- loc.df %>%
+#   filter(age >= 6) %>%
+#   filter(depth < 20) %>%
+#   ggplot(aes(-depth, colour=liceSpeedF)) +
+#   geom_density(adjust=1.5) + 
+#   scale_colour_viridis_d(end=0.9) +
+#   transition_states(timeCalculated, wrap=F, transition_length=1, state_length=0) +
+#   ggtitle( "{closest_state}") +
+#   facet_grid(.~meshRes) +
+#   theme(legend.position="bottom") +
+#   coord_flip()
+# anim_save(glue("figs/vertDistribution2_site.gif"),
+#           anim, nframes=interp*length(hours)*length(days),
+#           fps=24, width=9, height=4, res=300, units="in")
 
 anim <- loc.df %>%
-  filter(timeRes=="1h") %>%
+  # filter(timeRes=="1h") %>%
   filter(age >= 12) %>%
   ggplot(aes(xyTot, colour=meshRes)) +
   geom_density(adjust=1.3) +
@@ -169,35 +199,6 @@ anim_save(glue("figs/xy_ln_movement2_site.gif"),
 #           anim, nframes=interp*length(hours)*length(days),
 #           fps=32, width=9, height=4, res=300, units="in")
 
-
-
-
-
-interp <- 1
-dens.sf <- loc.df %>% 
-  st_as_sf(coords=c("x", "y"), crs=27700) %>%
-  st_join(mesh.sf %>% filter(mesh=="WeStCOMS2") %>% select(i)) %>%
-  st_drop_geometry() %>%
-  group_by(sim, meshRes, liceSpeedF, timeCalculated, i) %>%
-  summarise(density=sum(density), N=n()) %>%
-  ungroup %>%
-  inner_join(mesh.sf %>% filter(mesh=="WeStCOMS2"), .) %>%
-  mutate(density=log(density/(area*depth)))
-rm(loc.df); gc()
-anim <- dens.sf %>%
-  filter(timeCalculated < "2021-11-03 00:00:00") %>%
-  ggplot() + 
-  geom_sf(data=mesh.fp, fill=NA, colour="grey30") +
-  geom_sf(aes(fill=density), colour=NA) + 
-  scale_fill_viridis_c() +
-  transition_states(timeCalculated, wrap=F, transition_length=0, state_length=1) +
-  facet_grid(liceSpeedF~meshRes) +
-  theme(axis.text=element_blank(),
-        legend.position="bottom") +
-  ggtitle( "Lice density: {closest_state}")
-anim_save(glue("figs/density_slower_site.gif"),
-          anim, nframes=interp*length(hours)*length(days),
-          fps=6, width=7, height=9, res=300, units="in")
 
 
 

@@ -11,13 +11,15 @@
 library(tidyverse); library(glue); library(lubridate); library(sf)
 source("code/00_fn.R")
 
+initDensity <- c("Scaled", "Uniform")[2]
+
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
                             mesh="D:/hydroOut/",
-                            out=glue("{getwd()}/out/siteRelease/")),
+                            out=glue("{getwd()}/out/siteRelease_init{initDensity}/")),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
-                          out=glue("{getwd()}/out/siteRelease/")))
+                          out=glue("{getwd()}/out/siteRelease_init{initDensity}/")))
 
 
 
@@ -53,7 +55,7 @@ elemAct.df <- map_dfr(sim_seq,
   left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
               select(mesh, timeRes, liceSpeed, liceSpeedF, sim))
 elemAct.sf <- left_join(mesh.sf, elemAct.df, by=c("mesh", "i"))
-write_sf(elemAct.sf, "out/00_processed/elementActivity_site.gpkg")
+write_sf(elemAct.sf, glue("out/00_processed/elementActivity_site_init{initDensity}.gpkg"))
 rm(elemAct.df); rm(elemAct.sf); gc()
 
 
@@ -74,13 +76,13 @@ for(i in sim_seq) {
                              "date"="fileDate", "hour"="fileHour")) %>%
     filter(minute(timeCalculated)==0) %>%
     select(-mesh, -timeRes, -hour, -date) %>%
-    saveRDS(glue("out/00_processed/temp_site_sim_{i}.rds"))
+    saveRDS(glue("out/00_processed/temp_site_init{initDensity}_sim_{i}.rds"))
   gc()
 }
-map_dfr(dir("out/00_processed", "temp_site_sim.*.rds", full.names=T), readRDS) %>%
+map_dfr(dir("out/00_processed", glue("temp_site_init{initDensity}_sim.*.rds"), full.names=T), readRDS) %>%
   left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
               select(sim, mesh, timeRes, liceSpeedF)) %>%
-  saveRDS("out/00_processed/locations_site.rds")
+  saveRDS(glue("out/00_processed/locations_site_init{initDensity}.rds"))
 
 
 
@@ -108,6 +110,6 @@ for(i in sim_seq) {
 do.call('rbind', connect.df) %>%
   left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
               select(sim, mesh, timeRes, liceSpeedF)) %>%
-  saveRDS("out/00_processed/connectivity_site.rds")
+  saveRDS(glue("out/00_processed/connectivity_site_init{initDensity}.rds"))
 
 
