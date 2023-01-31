@@ -1,6 +1,6 @@
 #! /usr/bin/env sh
 
-NPARAMS=1
+NPARAMS=2
 if [ "$#" -ne $NPARAMS ]; then
 	echo
 	echo "Must supply:"
@@ -12,7 +12,8 @@ fi
 pwd
 
 # Revised: get the output directory from the properties file
-OUTDIR=`sed -n -e '/^destinationDirectory/p' $1 | cut -d "=" -f 2 | xargs`
+#OUTDIR=`sed -n -e '/^destinationDirectory/p' $1 | cut -d "=" -f 2 | xargs`
+OUTDIR=$2
 echo
 echo "output directory = "$OUTDIR
 
@@ -25,7 +26,7 @@ echo "sitefile = "$SITEFILE
 cd $OUTDIR
 pwd
 
-/usr/local/java/jre1.8.0_211/bin/java -Xmx8192m -Xms4096m -jar /home/sa04ts/biotracker/particle_track.jar ${1} > stdout.txt
+/usr/local/java/jre1.8.0_211/bin/java -Xmx8192m -Xms4096m -jar ../../../../jar/particle_track.jar ${1} > stdout.txt
 
 mkdir connectivity
 mv connectivity_* connectivity/
