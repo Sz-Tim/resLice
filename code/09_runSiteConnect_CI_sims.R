@@ -19,10 +19,10 @@ source("code/00_fn.R")
 # define parameters -------------------------------------------------------
 
 overwrite_jar <- T
-cores <- ifelse(get_os()=="windows", 11, 40)
+cores <- ifelse(get_os()=="windows", 11, 50)
 nDays <- 7
 initDensity <- c("Scaled", "Uniform")[2]
-nReps <- 2
+nReps <- 20
 nParts_hr_site <- 20
 
 dirs <- switch(get_os(),
