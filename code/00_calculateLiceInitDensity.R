@@ -26,9 +26,9 @@ sites.i <- read_csv("../resLice/data/ms_site_details.csv") %>%
 
 lice.i <- read_csv("../resLice/data/Sealice - SEALICE.csv") %>%
   janitor::clean_names(case="small_camel") %>%
-  filter(siteNo %in% sites.i$marineScotlandSiteId &
-           weekBeginning > "2021-10-01" &
-           weekBeginning < "2021-12-31") %>%
+  filter(siteNo %in% sites.i$marineScotlandSiteId) %>%
+  # filter(weekBeginning > "2021-10-01" &
+           # weekBeginning < "2021-12-31") %>%
   right_join(sites.i, ., by=c("siteName", "marineScotlandSiteId"="siteNo")) %>%
   group_by(marineScotlandSiteId) %>%
   arrange(marineScotlandSiteId, weekBeginning) %>%
@@ -37,7 +37,7 @@ lice.i <- read_csv("../resLice/data/Sealice - SEALICE.csv") %>%
 
 fish.i <- read_csv("../resLice/data/biomass_monthly_reports.csv") %>%
   janitor::clean_names(case="small_camel") %>%
-  filter(year %in% paste0("01-", c("Oct", "Nov", "Dec"), "-2021")) %>%
+  # filter(year %in% paste0("01-", c("Oct", "Nov", "Dec"), "-2021")) %>%
   st_as_sf(coords=c("easting", "northing"), crs=27700, remove=F) %>%
   filter(st_within(., mesh.fp, sparse=F)) %>%
   mutate(marineScotlandSiteId=sites.i$marineScotlandSiteId[st_nearest_feature(., sites.i)])
