@@ -35,7 +35,7 @@ dirs <- switch(get_os(),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
                           hydro.linnhe="/media/archiver/common/sa04ts-temp/linnhe7",
-                          hydro.westcoms="/media/archiver/common/sa01da-work/WeStCOMS2/Archive",
+                          hydro.westcoms="/media/archiver/common/sa04ts-temp/WeStCOMS2",
                           jar=glue("{getwd()}/jar"),
                           out=glue("{getwd()}/out/siteConnectReps_init{initDensity}")))
 
