@@ -278,7 +278,7 @@ connect.df %>%
             density_lo=quantile(density, probs=0.1),
             density_hi=quantile(density, probs=0.9)) %>%
   ungroup %>%
-  mutate(sortOrder=factor(sim, levels=c(8,1:7))) %>%
+  mutate(sortOrder=factor(sim, levels=c(8,1:7,9:12))) %>%
   arrange(sortOrder, density_mn) %>%
   mutate(source=factor(source, levels=unique(source))) %>%
   group_by(source) %>%
@@ -303,7 +303,7 @@ influxPct.sf <- connect.df %>%
             density_lo=quantile(density, probs=0.1),
             density_hi=quantile(density, probs=0.9)) %>%
   ungroup %>%
-  mutate(sortOrder=factor(sim, levels=c(8,1:7))) %>%
+  mutate(sortOrder=factor(sim, levels=c(8,1:7,9:12))) %>%
   arrange(sortOrder, density_mn) %>%
   mutate(dest=factor(dest, levels=unique(dest))) %>%
   group_by(dest) %>%
@@ -321,7 +321,7 @@ influxNoSelfPct.sf <- connect.df %>%
             density_lo=quantile(density, probs=0.1),
             density_hi=quantile(density, probs=0.9)) %>%
   ungroup %>%
-  mutate(sortOrder=factor(sim, levels=c(8,1:7))) %>%
+  mutate(sortOrder=factor(sim, levels=c(8,1:7,9:12))) %>%
   arrange(sortOrder, density_mn) %>%
   mutate(dest=factor(dest, levels=unique(dest))) %>%
   group_by(dest) %>%
@@ -338,7 +338,7 @@ outfluxPct.sf <- connect.df %>%
             density_lo=quantile(density, probs=0.1),
             density_hi=quantile(density, probs=0.9)) %>%
   ungroup %>%
-  mutate(sortOrder=factor(sim, levels=c(8,1:7))) %>%
+  mutate(sortOrder=factor(sim, levels=c(8,1:7,9:12))) %>%
   arrange(sortOrder, density_mn) %>%
   mutate(source=factor(source, levels=unique(source))) %>%
   group_by(source) %>%
@@ -356,7 +356,7 @@ outfluxNoSelfPct.sf <- connect.df %>%
             density_lo=quantile(density, probs=0.1),
             density_hi=quantile(density, probs=0.9)) %>%
   ungroup %>%
-  mutate(sortOrder=factor(sim, levels=c(8,1:7))) %>%
+  mutate(sortOrder=factor(sim, levels=c(8,1:7,9:12))) %>%
   arrange(sortOrder, density_mn) %>%
   mutate(source=factor(source, levels=unique(source))) %>%
   group_by(source) %>%
