@@ -49,18 +49,25 @@ file.copy(glue("{dirs$WeStCOMS2_5min}/{f.orig}"), glue("{dirs$WeStCOMS2_5min_new
 
 
 # filter 5min to 1h -------------------------------------------------------
-# This is only necessary for linnhe7
-extract.i <- tibble(file_5min=dir(dirs$linnhe_5min_new)) %>%
+
+# NOTE: This needs to be done BEFORE relocating 2022 5min files to netcdf_2022
+# i.e., all 5min files must be in dir_5min_new
+h <- 1
+mesh <- c("westcoms2", "linnhe7")[h]
+dir_1h <- c(dirs$WeStCOMS2_1h, dirs$linnhe_1h)[h]
+dir_5min_new <- c(dirs$WeStCOMS2_5min_new, dirs$linnhe_5min_new)[h]
+
+extract.i <- tibble(file_5min=dir(dir_5min_new)) %>%
   mutate(cumul_hours=row_number()*2,
          day=(cumul_hours-1) %/% 24,
          date=str_remove_all(startDate + day, "-"),
          layer_start_1h=(cumul_hours-1) %% 24,
          layer_end_1h=layer_start_1h+1,
-         file_1h=glue("linnhe7_{date}_0001.nc"))
+         file_1h=glue("{mesh}_{date}_0001.nc"))
 
 # In Dima's files, layer 0 and layer 12 are rounded hours
 # I need to create a new file for each day
-init.nc <- nc_open(glue("{dirs$linnhe_5min_new}/{extract.i$file_5min[1]}"))
+init.nc <- nc_open(glue("{dir_5min_new}/{extract.i$file_5min[1]}"))
 # ncdf attributes and mesh info
 nc <- list(
   uvnode=cbind(ncvar_get(init.nc, "lonc"), ncvar_get(init.nc, "latc")),
@@ -101,7 +108,7 @@ for(i in 1:n_distinct(extract.i$file_1h)) {
   ncvar.i <- vector("list", length(vars.hour_i)) %>% setNames(names(vars.hour_i))
   
   for(j in 1:nrow(extract.i_i)) {
-    nc.j <- nc_open(glue("{dirs$linnhe_5min_new}/{extract.i_i$file_5min[j]}"))
+    nc.j <- nc_open(glue("{dir_5min_new}/{extract.i_i$file_5min[j]}"))
     i_j <- extract.i_i$layer_start_1h[j]:extract.i_i$layer_end_1h[j]
     for(v in var.needed) {
       dims.v <- dim(vars.hour_i[[v]])
@@ -142,7 +149,7 @@ for(i in 1:n_distinct(extract.i$file_1h)) {
                               dim=dims.i$obj[match(dims.v, dims.i$len)])
   }
   
-  hour.nc <- nc_create(glue("{dirs$linnhe_1h}/{new.f}"), ncvar.i)
+  hour.nc <- nc_create(glue("{dir_1h}/{new.f}"), ncvar.i)
   walk(seq_along(ncvar.i), ~ncvar_put(hour.nc, var.needed[.x], vars.hour_i[[.x]]))
   nc_close(hour.nc)
 }
