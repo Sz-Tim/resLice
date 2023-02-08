@@ -27,11 +27,12 @@ dirs <- switch(get_os(),
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
   mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
                            labels=c("Slow", "Medium", "Fast")))
-sims <- dir(dirs$out, "sim_[0-9][0-9]")
+sims <- dir(dirs$out, "sim_[0-9][0-9]$")
 time.key <- read_csv("data/timeRes_key.csv") %>% 
   rename(fileHour=layer) %>%
   mutate(fileDate=as.character(fileDate)) %>%
   select(mesh, timeRes, fileDate, fileHour, timeCalculated)
+
 
 
 
