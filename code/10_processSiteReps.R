@@ -70,25 +70,38 @@ do.call('rbind', connect.ls) %>%
   saveRDS(glue("out/00_processed/connectivity_siteReps_init{initDensity}.rds"))
 
 
-connect.df <- do.call('rbind', connect.ls) %>%
-  left_join(sim_i %>% rename(sim=paste0("sim_", i)) %>%
-              select(sim, mesh, timeRes, liceSpeedF))
+
+
+
+
+
+
+
+
+# TO MOVE -----------------------------------------------------------------
 
 connect.df <- readRDS(glue("out/00_processed/connectivity_siteReps_init{initDensity}.rds")) %>%
   mutate(meshRes=paste(mesh, timeRes, sep=", "),
          sim=as.numeric(str_sub(sim, -2, -1)))
 
 theme_set(theme_bw())
+col_meshRes <- c("linnhe7, 1h"="#a6611a", "linnhe7, 5min"="#dfc27d",
+                 "WeStCOMS2, 1h"="#018571", "WeStCOMS2, 5min"="#80cdc1")
+tot_part <- 16*(24*7-65)*5
+
 
 connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, rep) %>%
   summarise(density=sum(density)) %>%
   ggplot(aes(timeSim, density, group=paste0(sim, rep), colour=meshRes)) + 
   geom_line(alpha=0.5) + 
+  scale_colour_manual(values=col_meshRes) +
   ggtitle("Total infections") +
   facet_wrap(~liceSpeedF)
 
 connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, source, dest) %>%
   summarise(density_mn=mean(density),
             density_lo=quantile(density, probs=0.1),
@@ -96,9 +109,12 @@ connect.df %>%
   ggplot(aes(timeSim, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes, fill=meshRes)) + 
   geom_line() + geom_ribbon(colour=NA, alpha=0.5) +
   facet_grid(source~dest) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   ggtitle("Pairwise infections")
 
 connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
   filter(source!=dest) %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, source, rep) %>%
   summarise(density=sum(density)) %>%
@@ -109,9 +125,12 @@ connect.df %>%
   ggplot(aes(timeSim, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes, fill=meshRes)) + 
   geom_line() + geom_ribbon(colour=NA, alpha=0.5) +
   facet_grid(liceSpeedF~source) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   ggtitle("Outflux to other sites")
 
 connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, source, rep) %>%
   summarise(density=sum(density)) %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, source) %>%
@@ -121,9 +140,12 @@ connect.df %>%
   ggplot(aes(timeSim, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes, fill=meshRes)) + 
   geom_line() + geom_ribbon(colour=NA, alpha=0.5) +
   facet_grid(liceSpeedF~source) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   ggtitle("Outflux + self: Pressure caused")
 
 connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
   filter(source!=dest) %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, dest, rep) %>%
   summarise(density=sum(density)) %>%
@@ -134,9 +156,12 @@ connect.df %>%
   ggplot(aes(timeSim, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes, fill=meshRes)) + 
   geom_line() + geom_ribbon(colour=NA, alpha=0.5) +
   facet_grid(liceSpeedF~dest) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   ggtitle("Influx from other sites")
 
 connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, dest, rep) %>%
   summarise(density=sum(density)) %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, dest) %>%
@@ -146,9 +171,12 @@ connect.df %>%
   ggplot(aes(timeSim, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes, fill=meshRes)) + 
   geom_line() + geom_ribbon(colour=NA, alpha=0.5) +
   facet_grid(liceSpeedF~dest) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   ggtitle("Influx + self: Pressure received")
 
 connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
   filter(source==dest) %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, dest, rep) %>%
   summarise(density=sum(density)) %>%
@@ -159,9 +187,12 @@ connect.df %>%
   ggplot(aes(timeSim, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes, fill=meshRes)) + 
   geom_line() + geom_ribbon(colour=NA, alpha=0.5) +
   facet_grid(liceSpeedF~dest) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   ggtitle("Self infection")
 
 connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, rep) %>%
   summarise(density=sum(density)) %>%
   group_by(sim, meshRes, liceSpeedF, timeSim) %>%
@@ -170,10 +201,29 @@ connect.df %>%
             density_hi=quantile(density, probs=0.9)) %>%
   ggplot(aes(timeSim, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes, fill=meshRes)) + 
   geom_line() + geom_ribbon(colour=NA, alpha=0.5) + 
-  facet_wrap(~liceSpeedF)
+  facet_wrap(~liceSpeedF) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
+  labs(x="Date", y="Total infection pressure")
+connect.df %>%
+  filter(timeSim > "2021-11-03 00:00:00") %>%
+  group_by(sim, meshRes, liceSpeedF, timeSim, rep) %>%
+  summarise(density=sum(density)) %>%
+  group_by(sim, meshRes, liceSpeedF, timeSim) %>%
+  summarise(density_mn=mean(density),
+            density_lo=quantile(density, probs=0.1),
+            density_hi=quantile(density, probs=0.9)) %>%
+  ggplot(aes(timeSim, density_mn, ymin=density_lo, ymax=density_hi, colour=liceSpeedF, fill=liceSpeedF)) + 
+  geom_line() + geom_ribbon(colour=NA, alpha=0.5) + 
+  facet_wrap(~meshRes) +
+  scale_colour_viridis_d("Lice speed", end=0.9) +
+  scale_fill_viridis_d("Lice speed", end=0.9) +
+  labs(x="Date", y="Total infection pressure")
+  
 
 
 connect.df %>%
+  mutate(density=density/tot_part) %>%
   group_by(sim, meshRes, liceSpeedF, rep) %>%
   summarise(density=sum(density)) %>%
   group_by(sim, meshRes, liceSpeedF) %>%
@@ -182,7 +232,24 @@ connect.df %>%
             density_hi=quantile(density, probs=0.9)) %>%
   ggplot(aes(liceSpeedF, density_mn, ymin=density_lo, ymax=density_hi,
              colour=meshRes, fill=meshRes, group=meshRes)) + 
-  geom_point() + geom_line() + geom_linerange() + geom_ribbon(alpha=0.5, colour=NA)
+  geom_point() + geom_line() + geom_linerange() + geom_ribbon(alpha=0.5, colour=NA) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
+  labs(x="Lice speed", y="Pr(Infection | particle)")
+connect.df %>%
+  mutate(density=density/tot_part) %>%
+  group_by(sim, meshRes, liceSpeedF, rep) %>%
+  summarise(density=sum(density)) %>%
+  group_by(sim, meshRes, liceSpeedF) %>%
+  summarise(density_mn=mean(density),
+            density_lo=quantile(density, probs=0.1),
+            density_hi=quantile(density, probs=0.9)) %>%
+  ggplot(aes(meshRes, density_mn, ymin=density_lo, ymax=density_hi,
+             colour=liceSpeedF, fill=liceSpeedF, group=liceSpeedF)) + 
+  geom_point() + geom_line() + geom_linerange() + geom_ribbon(alpha=0.5, colour=NA) +
+  scale_colour_viridis_d("Lice speed", end=0.9) +
+  scale_fill_viridis_d("Lice speed", end=0.9) +
+  labs(x="Mesh", y="Pr(Infection | particle)")
 
 
 connect.df %>%
@@ -247,8 +314,9 @@ connect.df %>%
   mutate(density_delta=density_mn-first(density_mn),
          density_pct_chg=density_delta/first(density_mn)) %>%
   ggplot(aes(dest, density_delta, colour=meshRes,
-             fill=meshRes, group=sim, shape=liceSpeedF, linetype=liceSpeedF)) + 
+             fill=meshRes, group=sim)) + 
   geom_point() + geom_line() +
+  facet_grid(liceSpeedF~.) +
   ggtitle("Influx + self: Pressure received") + 
   coord_flip()
 connect.df %>%
@@ -266,8 +334,50 @@ connect.df %>%
   mutate(density_delta=density_mn-first(density_mn),
          density_pct_chg=density_delta/first(density_mn)) %>%
   ggplot(aes(source, density_delta, colour=meshRes,
-             fill=meshRes, group=sim, shape=liceSpeedF, linetype=liceSpeedF)) + 
+             fill=meshRes, group=sim)) + 
   geom_point() + geom_line() +
+  facet_grid(liceSpeedF~.) +
+  ggtitle("Outflux + self: Pressure caused") + 
+  coord_flip()
+
+connect.df %>%
+  group_by(sim, meshRes, liceSpeedF, dest, rep) %>%
+  summarise(density=sum(density)) %>%
+  group_by(sim, meshRes, liceSpeedF, dest) %>%
+  summarise(density_mn=mean(density),
+            density_lo=quantile(density, probs=0.1),
+            density_hi=quantile(density, probs=0.9)) %>%
+  ungroup %>%
+  mutate(sortOrder=factor(sim, levels=c(8,1:7,9:12))) %>%
+  arrange(sortOrder, density_mn) %>%
+  mutate(dest=factor(dest, levels=unique(dest))) %>%
+  group_by(dest) %>%
+  mutate(density_delta=density_mn-first(density_mn),
+         density_pct_chg=density_delta/first(density_mn)) %>%
+  ggplot(aes(dest, density_delta, colour=liceSpeedF,
+             fill=liceSpeedF, group=sim)) + 
+  geom_point() + geom_line() +
+  facet_grid(meshRes~.) +
+  ggtitle("Influx + self: Pressure received") + 
+  coord_flip()
+connect.df %>%
+  group_by(sim, meshRes, liceSpeedF, source, rep) %>%
+  summarise(density=sum(density)) %>%
+  group_by(sim, meshRes, liceSpeedF, source) %>%
+  summarise(density_mn=mean(density),
+            density_lo=quantile(density, probs=0.1),
+            density_hi=quantile(density, probs=0.9)) %>%
+  ungroup %>%
+  mutate(sortOrder=factor(sim, levels=c(8,1:7,9:12))) %>%
+  arrange(sortOrder, density_mn) %>%
+  mutate(source=factor(source, levels=unique(source))) %>%
+  group_by(source) %>%
+  mutate(density_delta=density_mn-first(density_mn),
+         density_pct_chg=density_delta/first(density_mn)) %>%
+  ggplot(aes(source, density_delta, colour=liceSpeedF,
+             fill=liceSpeedF, group=sim)) + 
+  geom_point() + geom_line() +
+  facet_grid(meshRes~.) +
   ggtitle("Outflux + self: Pressure caused") + 
   coord_flip()
 
@@ -408,3 +518,23 @@ ggplot(outfluxNoSelfPct.sf) + geom_sf(data=mesh.fp) +
   facet_grid(liceSpeedF~meshRes) +
   ggtitle("Outflux: \u0394 vs. WeStCOMS 1h")
 
+
+
+
+
+
+
+
+
+# mesh fp -----------------------------------------------------------------
+
+wc.fp <- st_read("../../WeStCOMS/data/WeStCOMS2_mesh.gpkg") %>% st_union()
+
+ggplot(wc.fp) + 
+  geom_sf(colour=NA, fill="#377eb8") + 
+  geom_sf(data=mesh.fp, fill="#ff7f00", colour="#ff7f00", size=0.2) + 
+  theme_classic() +
+  theme(axis.text=element_blank(),
+        axis.ticks=element_blank(), 
+        axis.line=element_blank())
+ggsave("figs/mesh_overview.png", height=18, width=8, dpi=300)
