@@ -26,6 +26,34 @@ get_os <- function() {
 
 
 
+
+extract_surface <- function(nc, dir, subdir, meshRes, westcoms_i=NULL) {
+  nc.i <- nc_open(glue("{dir}/{subdir}/{nc}"))
+  u <- ncvar_get(nc.i, "u")[,1,]
+  v <- ncvar_get(nc.i, "v")[,1,]
+  ww <- ncvar_get(nc.i, "ww")[,1,]
+  temp <- ncvar_get(nc.i, "temp")[,1,]
+  salinity <- ncvar_get(nc.i, "salinity")[,1,]
+  nc_close(nc.i)
+  
+  currentSpeed <- sqrt(u^2 + v^2 + ww^2)
+  elem.df <- expand_grid(fileHour=(1:ncol(u))-1, i=1:nrow(u)) %>% 
+    mutate(fileDate=str_split_fixed(nc, "_", 3)[1,2],
+           meshRes=meshRes,
+           currentSpeed=c(currentSpeed))
+  node.df <- expand_grid(fileHour=(1:ncol(temp))-1, i=1:nrow(temp)) %>% 
+    mutate(fileDate=str_split_fixed(nc, "_", 3)[1,2],
+           meshRes=meshRes,
+           temp=c(temp),
+           salinity=c(salinity))
+  if(!is.null(westcoms_i)) {
+    elem.df <- filter(elem.df, i %in% westcoms_i$elem)
+    node.df <- filter(node.df, i %in% westcoms_i$node)
+  }
+  return(list(elem=elem.df, node=node.df))
+}
+
+
 setPartTrackProperties <- function(
   destinationDirectory="out/",
   coordRef="OSGB1936",
