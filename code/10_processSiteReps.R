@@ -11,7 +11,7 @@
 library(tidyverse); library(glue); library(lubridate); library(sf)
 source("code/00_fn.R")
 
-initDensity <- c("Scaled", "Uniform")[2]
+initDensity <- c("Scaled", "Uniform")[1]
 
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
@@ -88,7 +88,7 @@ theme_set(theme_bw())
 col_meshRes <- c("linnhe7, 1h"="#a6611a", "linnhe7, 5min"="#dfc27d",
                  "WeStCOMS2, 1h"="#018571", "WeStCOMS2, 5min"="#80cdc1")
 tot_part <- 16*(24*7-65)*5
-
+mowi_sites <- c("FS0237", "FS0241", "FS0240", "FS0244")
 
 connect.df %>%
   filter(timeSim > "2021-11-03 00:00:00") %>%
@@ -161,6 +161,7 @@ connect.df %>%
   ggtitle("Influx from other sites")
 
 connect.df %>%
+  filter(dest %in% mowi_sites) %>%
   filter(timeSim > "2021-11-03 00:00:00") %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, dest, rep) %>%
   summarise(density=sum(density)) %>%
@@ -204,7 +205,7 @@ connect.df %>%
   facet_wrap(~liceSpeedF) +
   scale_colour_manual(values=col_meshRes) +
   scale_fill_manual(values=col_meshRes) +
-  labs(x="Date", y="Total infection pressure")
+  labs(x="Date", y="Total hourly infection pressure")
 connect.df %>%
   filter(timeSim > "2021-11-03 00:00:00") %>%
   group_by(sim, meshRes, liceSpeedF, timeSim, rep) %>%
@@ -218,7 +219,7 @@ connect.df %>%
   facet_wrap(~meshRes) +
   scale_colour_viridis_d("Lice speed", end=0.9) +
   scale_fill_viridis_d("Lice speed", end=0.9) +
-  labs(x="Date", y="Total infection pressure")
+  labs(x="Date", y="Total hourly infection pressure")
   
 
 
@@ -262,6 +263,8 @@ connect.df %>%
   ggplot(aes(source, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes,
              fill=meshRes, group=meshRes)) + 
   geom_point() + geom_line() + geom_linerange() + geom_ribbon(alpha=0.5, colour=NA) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   facet_grid(liceSpeedF~.) +
   ggtitle("Outflux + self: Pressure caused")
 
@@ -278,9 +281,15 @@ connect.df %>%
   mutate(source=factor(source, levels=unique(source))) %>%
   ggplot(aes(source, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes,
              fill=meshRes, group=meshRes)) + 
-  geom_point() + geom_line() + geom_linerange() + geom_ribbon(alpha=0.5, colour=NA) +
+  geom_point(position=position_dodge(width=0.5)) + 
+  geom_errorbar(position=position_dodge(width=0.5), width=1) +
+  # geom_ribbon(position=position_dodge(width=0.5), alpha=0.2, colour=NA) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   facet_grid(liceSpeedF~.) +
+  theme(axis.text.x=element_text(angle=270, vjust=0.5)) +
   ggtitle("Outflux + self: Pressure caused")
+ggsave("figs/outflux_total_by_site.png", width=7, height=5, dpi=300)
 
 connect.df %>%
   group_by(sim, meshRes, liceSpeedF, dest, rep) %>%
@@ -295,9 +304,14 @@ connect.df %>%
   mutate(dest=factor(dest, levels=unique(dest))) %>%
   ggplot(aes(dest, density_mn, ymin=density_lo, ymax=density_hi, colour=meshRes,
              fill=meshRes, group=meshRes)) + 
-  geom_point() + geom_line() + geom_linerange() + geom_ribbon(alpha=0.5, colour=NA) +
+  geom_point(position=position_dodge(width=0.5)) + 
+  geom_errorbar(position=position_dodge(width=0.5), width=1) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   facet_grid(liceSpeedF~.) +
+  theme(axis.text.x=element_text(angle=270, vjust=0.5)) +
   ggtitle("Influx + self: Pressure received")
+ggsave("figs/influx_total_by_site.png", width=7, height=5, dpi=300)
 
 connect.df %>%
   group_by(sim, meshRes, liceSpeedF, dest, rep) %>%
@@ -316,6 +330,8 @@ connect.df %>%
   ggplot(aes(dest, density_delta, colour=meshRes,
              fill=meshRes, group=sim)) + 
   geom_point() + geom_line() +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   facet_grid(liceSpeedF~.) +
   ggtitle("Influx + self: Pressure received") + 
   coord_flip()
@@ -336,6 +352,8 @@ connect.df %>%
   ggplot(aes(source, density_delta, colour=meshRes,
              fill=meshRes, group=sim)) + 
   geom_point() + geom_line() +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   facet_grid(liceSpeedF~.) +
   ggtitle("Outflux + self: Pressure caused") + 
   coord_flip()
@@ -400,6 +418,8 @@ connect.df %>%
              group=sim, shape=liceSpeedF, linetype=liceSpeedF)) + 
   geom_vline(xintercept=0) +
   geom_density() +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
   ggtitle("Outflux + self: Pressure caused") 
 
 
@@ -508,10 +528,12 @@ ggplot(influxNoSelfPct.sf) + geom_sf(data=mesh.fp) +
   facet_grid(liceSpeedF~meshRes) +
   ggtitle("Influx: \u0394 vs. WeStCOMS 1h")
 ggplot(outfluxPct.sf) + geom_sf(data=mesh.fp) +
-  geom_sf(aes(colour=density_delta), size=4) +
-  scale_colour_gradient2(low=scales::muted("blue"), high=scales::muted("red")) +
+  geom_sf(aes(fill=density_delta), size=4, shape=21) +
+  scale_fill_gradient2(low=scales::muted("blue"), high=scales::muted("red")) +
   facet_grid(liceSpeedF~meshRes) +
-  ggtitle("Outflux+self: \u0394 vs. WeStCOMS 1h")
+  ggtitle("Outflux+self: \u0394 vs. WeStCOMS 1h") +
+  theme(axis.text=element_blank())
+ggsave("figs/outflux_map_delta.png", width=8, height=6, dpi=300)
 ggplot(outfluxNoSelfPct.sf) + geom_sf(data=mesh.fp) +
   geom_sf(aes(colour=density_delta), size=4) +
   scale_colour_gradient2(low=scales::muted("blue"), high=scales::muted("red")) +
