@@ -21,7 +21,7 @@ source("code/00_fn.R")
 overwrite_jar <- T
 cores <- 11
 nDays <- 7
-initDensity <- c("Scaled", "Uniform")[2]
+initDensity <- c("Scaled", "Uniform")[1]
 
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
@@ -85,7 +85,7 @@ properties.ls <- map(
                           dt=sim.i$dt[.x],
                           stepsPerStep=sim.i$stepsPerStep[.x],
                           releaseInterval=sim.i$releaseInterval[.x],
-                          nparts=20,
+                          nparts=50,
                           viableDegreeDays=sim.i$viableDegreeDays[.x],
                           maxDegreeDays=sim.i$maxDegreeDays[.x],
                           vertSwimSpeedMean=sim.i$liceSpeed[.x],
