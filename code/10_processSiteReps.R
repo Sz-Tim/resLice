@@ -34,11 +34,11 @@ time.key <- read_csv("data/timeRes_key.csv") %>%
   select(mesh, timeRes, fileDate, fileHour, timeCalculated)
 
 
-
+# sims <- sims[1:3]
 
 # connectivity ------------------------------------------------------------
 
-site.i <- read_tsv("data/fishFarmSites_all3yr.tsv", col_names=c("site", "x", "y"))
+site.i <- read_tsv("data/fishFarmSites.tsv", col_names=c("site", "x", "y"))
 connect.ls <- map(sims, ~vector("list"))
 for(inum in seq_along(sims)) {
   i <- sims[inum]
