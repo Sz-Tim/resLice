@@ -40,7 +40,8 @@ extract_surface <- function(nc, dir, subdir, meshRes, westcoms_i=NULL) {
   elem.df <- expand_grid(fileHour=(1:ncol(u))-1, i=1:nrow(u)) %>% 
     mutate(fileDate=str_split_fixed(nc, "_", 3)[1,2],
            meshRes=meshRes,
-           currentSpeed=c(currentSpeed))
+           currentSpeed=c(currentSpeed),
+           vertSpeed=c(ww))
   node.df <- expand_grid(fileHour=(1:ncol(temp))-1, i=1:nrow(temp)) %>% 
     mutate(fileDate=str_split_fixed(nc, "_", 3)[1,2],
            meshRes=meshRes,

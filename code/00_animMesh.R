@@ -5,11 +5,14 @@ rm(list=ls())
 gc()
 
 
+
+# setup -------------------------------------------------------------------
+
 library(tidyverse); library(glue); library(lubridate); library(sf); library(ncdf4); library(gganimate)
 source("code/00_fn.R")
 theme_set(theme_classic())
 
-re_extract <- F
+re_extract <- T
 
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
@@ -124,7 +127,7 @@ anim <- node.sf %>%
   filter(!is.na(timeCalculated)) %>%
   ggplot(aes(colour=salinity)) + 
   geom_sf(size=0.5) + 
-  scale_colour_distiller(palette="Blues") +
+  scale_colour_distiller(palette="Blues", breaks=seq(10,30,by=5)) +
   transition_time(timeCalculated) +
   facet_grid(.~meshRes) +
   ggtitle( "{frame_time}")
@@ -206,3 +209,42 @@ anim <- elem.sf %>%
 anim_save(glue("figs/mesh_currentSpeed_linnhe7_5min.gif"),
           anim, nframes=289,
           fps=24, width=9, height=4, res=300, units="in")
+
+
+
+
+
+
+# salinity profiles -------------------------------------------------------
+
+glue("out/salinity_profile_{par.df$mesh[j]}_{par.df$tRes[j]}.csv")
+
+prof.df <- dir("out", "salinity_profile") %>% 
+  map_dfr(~read_csv(paste0("out/", .x)) %>% 
+            mutate(meshRes=str_sub(str_remove(.x, "salinity_profile_"),1,-5))) %>%
+  mutate(meshRes=str_replace("_", ", "))
+
+prof.df %>%
+  ggplot(aes(fill=salinity)) +
+  geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) + 
+  scale_fill_distiller(palette="Blues", direction=1, limits=c(17, 32)) +
+  scale_y_continuous("Depth (m)") +
+  scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
+  facet_wrap(~meshRes) +
+  theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
+        axis.title.x=element_blank())
+ggsave(glue("figs/mesh/salinity_profiles.png"), 
+       width=7, height=6, dpi=300)
+
+prof.df %>%
+  filter(timeEnd <= "2021-11-03 00:00:00") %>%
+  ggplot(aes(fill=salinity)) +
+  geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) + 
+  scale_fill_distiller(palette="Blues", direction=1, limits=c(17, 32)) +
+  scale_y_continuous("Depth (m)", limits=c(-30, 0)) +
+  scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
+  facet_wrap(~meshRes) +
+  theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
+        axis.title.x=element_blank())
+ggsave(glue("figs/mesh/salinity_profiles_2days.png"), 
+       width=7, height=6, dpi=300)
