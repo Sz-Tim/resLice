@@ -217,6 +217,15 @@ time.df <- list(
          i=row_number()-1,
          timeCalculated=round_date(time_dt, "5 minute"))
 
+# There is something wrong with linnhe7, 1h filedate 20211107, 20211108 and
+# similarly for linnhe7 5min... the time embedded in the file is off.
+time.df <- time.df %>% 
+  arrange(mesh, timeRes, fileDate, layer) %>%
+  mutate(timeStep=if_else(timeRes=="1h", 60*60, 5*60)) %>%
+  group_by(mesh, timeRes) %>%
+  mutate(timeStep=timeStep*(row_number()>1)) %>%
+  mutate(timeCalculated=as_datetime("2021-11-01 00:00:00") + cumsum(timeStep))
+
 write_csv(time.df, "data/timeRes_key.csv")
 
 
