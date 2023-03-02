@@ -96,7 +96,7 @@ setPartTrackProperties <- function(
   D_hVert=0.001,
   salinityThreshMin=23,
   salinityThreshMax=31,
-  mortalityRate=0,
+  mortalityRate=0.01,
   salinityMort="true",
   swimLightLevel="true",
   vertSwimSpeedMean=-0.0005,
