@@ -16,6 +16,7 @@ initDensity <- c("Scaled", "Uniform")[2]
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
                             mesh="D:/hydroOut/",
+                            # out=glue("E:/Projects/OffAqua/resLice/siteRelease_init{initDensity}/")),
                             out=glue("{getwd()}/out/siteRelease_init{initDensity}/")),
                linux=list(proj=getwd(),
                           mesh="/home/sa04ts/FVCOM_meshes",
@@ -64,25 +65,57 @@ rm(elemAct.df); rm(elemAct.sf); gc()
 
 # 5 min files are too big. Need to process using temp storage, then combine.
 for(i in sim_seq) {
-  dir(glue("{sim_i$outDir[i]}locs"), "locations_", full.names=T) %>%
+  tide.mesh <- if_else(sim_i$mesh[i]=="linnhe7", "linnhe", sim_i$mesh[i])
+  tide.sf <- st_read(glue("data/salinityPulse_{tide.mesh}_{sim_i$timeRes[i]}.gpkg")) %>%
+    rename(timeCalculated=timeStart)
+  loc.i <- dir(glue("{sim_i$outDir[i]}locs"), "locations_", full.names=T) %>%
     map_dfr(~read_delim(.x, delim=" ", col_names=T, show_col_types=F) %>%
-              select(-startLocation, -startDate, -depthLayer, -degreeDays) %>%
+              # select(-startLocation, -startDate, -depthLayer, -degreeDays) %>%
               rename(meshParticle=mesh) %>%
               mutate(date=str_sub(.x,-12,-5))) %>%
     mutate(sim=i) %>%
     left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
                 select(mesh, timeRes, sim)) %>%
-    left_join(time.key, by=c("mesh", "timeRes", 
+    left_join(time.key, by=c("mesh", "timeRes",
                              "date"="fileDate", "hour"="fileHour")) %>%
     filter(minute(timeCalculated)==0) %>%
-    select(-mesh, -timeRes, -hour, -date) %>%
-    saveRDS(glue("out/00_processed/temp_site_init{initDensity}_sim_{i}.rds"))
-  gc()
+    select(-mesh, -timeRes, -hour, -date)
+  cat("got loc.i\n")
+  saveRDS(loc.i, glue("out/00_processed/temp_site_init{initDensity}_sim_{i}.rds"))
+  # loc.i <- readRDS(glue("out/00_processed/temp_site_init{initDensity}_sim_{i}.rds"))
+  loc.sf <- loc.i %>%
+    # filter(status == 2) %>%
+    # filter(ID < 500) %>%
+    select(ID, x, y, density, depth, sim, timeCalculated) %>%
+    rename(z=depth) %>%
+    group_by(ID, sim) %>%
+    arrange(timeCalculated) %>%
+    mutate(x_m1=lag(x), y_m1=lag(y), z_m1=lag(z), density_m1=lag(density),
+           x_p1=lead(x), y_p1=lead(y), z_p1=lead(z), density_p1=lead(density),
+           dmx=x-x_m1, dmy=y-y_m1, dmz=z-z_m1, dmDens=density-density_m1,
+           dpx=x_p1-x, dpy=y_p1-y, dpz=z_p1-z, dpDens=density_p1-density,
+           dmXY=sqrt(dmx^2 + dmy^2), bearing_m=atan2(dmy, dmx),
+           dpXY=sqrt(dpx^2 + dpy^2), bearing_p=atan2(dpy, dpx)) %>%
+    ungroup %>%
+    st_as_sf(coords=c("x", "y"), crs=27700)
+  cat("got loc.sf\n")
+  rm(loc.i); gc()
+  inPulse.sf <- map_dfr(1:nrow(tide.sf),
+                        ~loc.sf %>%
+                          filter(timeCalculated==tide.sf$timeCalculated[.x]) %>%
+                          mutate(inPulse=st_within(.,tide.sf[.x,], sparse=F)[,1])) %>%
+    filter(inPulse)
+  st_write(inPulse.sf, glue("out/00_processed/temp_sitePulse_init{initDensity}_sim_{i}.gpkg"), append=F)
+  rm(inPulse.sf); gc()
 }
 map_dfr(dir("out/00_processed", glue("temp_site_init{initDensity}_sim.*.rds"), full.names=T), readRDS) %>%
   left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
               select(sim, mesh, timeRes, liceSpeedF)) %>%
   saveRDS(glue("out/00_processed/locations_site_init{initDensity}.rds"))
+map_dfr(dir("out/00_processed", glue("temp_sitePulse_init{initDensity}_sim.*.gpkg"), full.names=T), st_read) %>%
+  left_join(sim_i %>% mutate(sim=as.numeric(i)) %>%
+              select(sim, mesh, timeRes, liceSpeedF)) %>%
+  st_write(glue("out/00_processed/locations_sitePulse_init{initDensity}.gpkg"), append=F)
 
 
 
@@ -95,7 +128,7 @@ site.i <- read_tsv("data/fishFarmSites.tsv", col_names=c("site", "x", "y"))
 connect.df <- vector("list", length(sim_seq))
 for(i in sim_seq) {
   connect.df[[i]] <- dir(glue("{sim_i$outDir[i]}connectivity"), "connectivity_") %>%
-    map_dfr(~read_delim(glue("{sim_i$outDir[i]}connectivity/{.x}"), 
+    map_dfr(~read_delim(glue("{sim_i$outDir[i]}connectivity/{.x}"),
                         delim=" ", col_names=site.i$site, show_col_types=F) %>%
               mutate(source=site.i$site) %>%
               pivot_longer(-"source", names_to="dest", values_to="density") %>%
