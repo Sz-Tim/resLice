@@ -139,3 +139,30 @@ nc_close(mesh.nc)
 
 
 
+
+
+# loch bearings -----------------------------------------------------------
+
+loch_pts <- st_read("data/temp/linnhe_skeleton.shp") %>% 
+  arrange(lochRegion, lochHead)
+loch_dirs <- loch_pts %>%
+  mutate(x=st_coordinates(.)[,1],
+         y=st_coordinates(.)[,2]) %>%
+  st_drop_geometry() %>%
+  group_by(lochRegion) %>%
+  summarise(dx=last(x)-first(x),
+            dy=last(y)-first(y)) %>%
+  mutate(bearing=atan2(dy, dx))
+loch_dirs %>% select(lochRegion, bearing) %>%
+  write_csv("data/loch_regions.csv")
+
+# loch_lines <- loch_pts %>%
+#   group_by(lochRegion) %>%
+#   summarise() %>%
+#   st_cast("LINESTRING") %>% 
+#   mutate(bearing=loch_dirs$bearing)
+# ggplot(loch_lines, aes(colour=bearing)) + geom_sf(size=2) +
+#   scale_colour_gradientn(colours=cmr$infinity, limits=c(-pi, pi),
+#                          breaks=c(-pi, -pi/2, 0, pi/2, pi),
+#                          labels=c("W", "S", "E", "N", "W"))
+
