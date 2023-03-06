@@ -21,27 +21,37 @@ dirs <- switch(get_os(),
                           mesh="/home/sa04ts/FVCOM_meshes",
                           out=glue("{getwd()}/out/siteRelease_init{initDensity}/")))
 
+loch_order <- c("Loch Linnhe (main)", "Loch Linnhe (head)", "Loch Eil", "Loch Leven", 
+                "Loch Creran", "Loch Etive (mouth)", "Loch Etive (head)",
+                "Loch a' Choire", "Loch Feochan", "Beyond Linnhe")
+corran <- st_buffer(st_as_sfc("POINT(201850 763450)", crs=27700), 17.5e3)
+etive.bbox <- list(xmin=185276, xmax=212845, ymin=728357, ymax=746971)
 
 
 
 # load files --------------------------------------------------------------
 
 mesh.sf <- list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
-                  mutate(mesh="linnhe7"),
+                  mutate(mesh="linnhe7", meshParticle="linnhe7"),
                 westcoms2=st_read(glue("{dirs$mesh}/WeStCOMS2_linnhe_mesh.gpkg")) %>%
-                  mutate(mesh="WeStCOMS2")) %>%
+                  mutate(mesh="WeStCOMS2", meshParticle="WeStCOMS2"),
+                westcoms2_full=st_read(glue("{dirs$mesh}/WeStCOMS2_mesh.gpkg")) %>%
+                  mutate(mesh="WeStCOMS2", meshParticle="Beyond Linnhe",
+                         lochRegion=10, mainLoch=0)) %>%
   do.call('rbind', .) %>%
-  select(i, area, depth, mesh, lochRegion, mainLoch, geom) %>%
-  full_join(., read_csv("data/loch_regions.csv"), by="lochRegion")
-mesh.lochRegions <- mesh.sf %>% group_by(mesh, lochRegion) %>%
-  summarise() %>%
-  mutate(lochRegionF=case_when(lochRegion==1 ~ "Loch Eil",
-                               lochRegion==2 ~ "Loch Leven",
-                               lochRegion==3 ~ "Loch Creran",
-                               lochRegion==4 ~ "Loch Etive (head)",
-                               lochRegion==5 ~ "Loch Etive (mouth)",
-                               lochRegion==6 ~ "Loch Feochan",
-                               lochRegion==7 ~ "Loch Linnhe (main)"))
+  select(i, area, depth, mesh, meshParticle, lochRegion, mainLoch, geom) %>%
+  full_join(., read_csv("data/loch_regions.csv"), by="lochRegion") %>%
+  left_join(., st_read("data/lochRegions_linnhe7.gpkg") %>% st_drop_geometry()) %>%
+  rename(area_elem=area, depth_elem=depth) %>%
+  mutate(vol_elem=area_elem*depth_elem,
+         vol30_elem=area_elem*pmin(depth_elem, 30))
+linnhe_elems <- mesh.sf %>% st_drop_geometry() %>%
+  filter(meshParticle!="Beyond Linnhe") %>% select(mesh, i) %>% mutate(inLinnhe=T)
+mesh.lochRegions <- mesh.sf %>% 
+  group_by(mesh, mainLoch, lochRegion, lochRegionF) %>%
+  summarise(bearing=mean(bearing),
+            vol_region=sum(vol_elem),
+            vol30_region=sum(vol30_elem)) 
 mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
 sim_i <- read_csv(glue("{dirs$out}/sim_i.csv")) %>%
   mutate(liceSpeedF=factor(liceSpeed, levels=c(0.0001, 0.0005, 0.001), 
@@ -57,16 +67,44 @@ loc.df <- readRDS(glue("out/00_processed/locations_site_init{initDensity}.rds"))
                         levels=c("WeStCOMS2, 1h", "WeStCOMS2, 5min", "linnhe7, 1h", "linnhe7, 5min")),
          hour=hour(timeCalculated),
          date=date(timeCalculated)) %>%
-  mutate(meshParticle=case_when(mesh=="linnhe7" & meshParticle==0 ~ "linnhe7",
-                                mesh=="linnhe7" & meshParticle==1 ~ "Beyond Linnhe",
-                                mesh=="WeStCOMS2" & meshParticle==0 ~ "WeStCOMS2", 
-                                mesh=="WeStCOMS2" & meshParticle==1 ~ "Beyond Linnhe")) %>%
+  left_join(linnhe_elems %>% rename(elem=i)) %>%
+  mutate(meshParticle=if_else(is.na(inLinnhe), "Beyond Linnhe", mesh)) %>%
   left_join(mesh.sf %>% 
               st_drop_geometry() %>% 
               rename(elem=i) %>%
-              select(mesh, elem, lochRegion, mainLoch))
+              select(meshParticle, elem, lochRegionF, mainLoch, 
+                     area_elem, depth_elem, vol_elem, vol30_elem)) %>%
+  left_join(mesh.lochRegions %>% st_drop_geometry()) %>%
+  mutate(lochRegionF=if_else(is.na(lochRegionF), "Beyond Linnhe", lochRegionF),
+         lochRegionF=factor(lochRegionF, levels=loch_order),
+         mainLoch=if_else(lochRegionF=="Beyond Linnhe", 2, mainLoch),
+         mainLoch=factor(mainLoch, levels=c(2,0,1), 
+                         labels=c("Beyond Linnhe", "Side lochs", "Main loch"))) 
+beyondLinnhe_vol <- loc.df %>% 
+  filter(lochRegionF=="Beyond Linnhe") %>%
+  group_by(elem) %>%
+  slice_head(n=1) %>%
+  ungroup %>%
+  summarise(vol_region=sum(vol_elem, na.rm=T),
+            vol30_region=sum(vol30_elem, na.rm=T))
+mainSide_vol <- mesh.lochRegions %>% st_drop_geometry() %>%
+  filter(lochRegion != 10) %>%
+  group_by(mesh, mainLoch) %>%
+  summarise(vol_mainSide=sum(vol_region),
+            vol30_mainSide=sum(vol30_region)) %>%
+  ungroup %>%
+  rename(meshParticle=mesh) %>%
+  mutate(mainLoch=if_else(mainLoch==0, "Side lochs", "Main loch")) %>%
+  bind_rows(beyondLinnhe_vol %>% 
+              mutate(meshParticle="Beyond Linnhe", 
+                     mainLoch="Beyond Linnhe") %>%
+              rename(vol_mainSide=vol_region, vol30_mainSide=vol30_region))
+loc.df <- loc.df %>%
+  mutate(vol_region=if_else(lochRegionF=="Beyond Linnhe", beyondLinnhe_vol$vol_region, vol_region),
+         vol30_region=if_else(lochRegionF=="Beyond Linnhe", beyondLinnhe_vol$vol30_region, vol30_region)) %>%
+  left_join(mainSide_vol)
 # loc.sf <- st_as_sf(loc.df, coords=c("x", "y"), crs=27700)
-
+gc()
 
 
 # plot elements -----------------------------------------------------------
