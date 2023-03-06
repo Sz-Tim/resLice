@@ -13,7 +13,7 @@ source("code/00_fn.R")
 theme_set(theme_classic())
 
 re_extract <- F
-focus <- c("all", "corran", "etive")[3]
+focus <- c("all", "corran", "etive")[2]
 
 dirs <- switch(get_os(),
                windows=list(proj=getwd(),
@@ -126,41 +126,47 @@ if(re_extract) {
 
 
 
-# animations --------------------------------------------------------------
-
-hours_per_s <- 8
 
 
 
 # 1h mesh animations ------------------------------------------------------
 
-node.df <- readRDS("temp/node_df.rds") %>%
-  filter(grepl("1h", meshRes)) %>%
-  filter(!is.na(timeCalculated)) %>%
-  rename(trinode=i)
-
-elem.sf <- left_join(mesh.sf,
-                     readRDS("temp/elem_df.rds") %>%
-                       filter(grepl("1h", meshRes)) %>%
-                       mutate(mesh=str_split_fixed(meshRes, ",", 2)[,1])) %>%
-  filter(!is.na(timeCalculated)) %>%
-  left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_1"="trinode"), suffix=c("", "_1")) %>%
-  left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_2"="trinode"), suffix=c("", "_2")) %>%
-  left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_3"="trinode"), suffix=c("", "_3")) %>%
-  rowwise() %>%
-  mutate(temp_i=sum(temp, temp_2, temp_3, na.rm=T)/
-           sum(!is.na(temp), !is.na(temp_2), !is.na(temp_3)),
-         salinity_i=sum(salinity, salinity_2, salinity_3, na.rm=T)/
-           sum(!is.na(salinity), !is.na(salinity_2), !is.na(salinity_3))) %>%
-  select(-temp, -temp_2, -temp_3, -salinity, -salinity_2, -salinity_3, -starts_with("trinode"))
-
-rm(node.df); gc()
-
-elem.times <- sort(unique(elem.sf$timeCalculated))
-sal.rng <- range(elem.sf$salinity_i)
-temp.rng <- range(elem.sf$temp_i)
-currentSpeed.rng <- range(elem.sf$currentSpeed)
-vertSpeed.rng <- range(elem.sf$vertSpeed)
+# node.df <- readRDS("temp/node_df.rds") %>%
+#   filter(grepl("1h", meshRes)) %>%
+#   filter(!is.na(timeCalculated)) %>%
+#   rename(trinode=i)
+# 
+# elem.sf <- left_join(mesh.sf,
+#                      readRDS("temp/elem_df.rds") %>%
+#                        filter(grepl("1h", meshRes)) %>%
+#                        mutate(mesh=str_split_fixed(meshRes, ",", 2)[,1])) %>%
+#   filter(!is.na(timeCalculated)) %>%
+#   left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_1"="trinode"), suffix=c("", "_1")) %>%
+#   left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_2"="trinode"), suffix=c("", "_2")) %>%
+#   left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_3"="trinode"), suffix=c("", "_3")) %>%
+#   rowwise() %>%
+#   mutate(temp_i=sum(temp, temp_2, temp_3, na.rm=T)/
+#            sum(!is.na(temp), !is.na(temp_2), !is.na(temp_3)),
+#          salinity_i=sum(salinity, salinity_2, salinity_3, na.rm=T)/
+#            sum(!is.na(salinity), !is.na(salinity_2), !is.na(salinity_3))) %>%
+#   ungroup %>%
+#   select(-temp, -temp_2, -temp_3, -salinity, -salinity_2, -salinity_3, -starts_with("trinode"))
+# elem.sf <- elem.sf %>%
+#   mutate(ln_vertSpeed=if_else(vertSpeed==0, -20, log(abs(vertSpeed))))
+# 
+# elem.sf$temp_og <- elem.sf$temp_i
+# elem.sf$temp_i <- pmax(elem.sf$temp_i, 8)
+# elem.sf$salinity_og <- elem.sf$salinity_i
+# elem.sf$salinity_i <- pmax(elem.sf$salinity_i, 10)
+# 
+# rm(node.df); gc()
+# 
+# elem.times <- sort(unique(elem.sf$timeCalculated))
+# sal.rng <- range(elem.sf$salinity_i, na.rm=T)
+# temp.rng <- range(elem.sf$temp_i, na.rm=T)
+# currentSpeed.rng <- range(elem.sf$currentSpeed, na.rm=T)
+# vertSpeed.rng <- range(elem.sf$vertSpeed, na.rm=T)
+# ln_vertSpeed.rng <- range(elem.sf$ln_vertSpeed, na.rm=T)
 # for(i in 1:length(elem.times)) {
 #   i.int <- as.integer(i)
 #   date_i <- date(elem.times[i])
@@ -175,7 +181,7 @@ vertSpeed.rng <- range(elem.sf$vertSpeed)
 #     facet_grid(.~meshRes) +
 #     ggtitle(paste0(date_i, " ", hour, ":00"))
 #   ggsave(glue("figs/mesh/temp/mesh_salinity_1h_{focus}_{str_pad(i,4,'l','0')}.png"),
-#          p.i, width=9, height=4, dpi=300)
+#          p.i, width=9, height=5, dpi=300)
 # }
 # for(i in 1:length(elem.times)) {
 #   i.int <- as.integer(i)
@@ -190,7 +196,7 @@ vertSpeed.rng <- range(elem.sf$vertSpeed)
 #     facet_grid(.~meshRes) +
 #     ggtitle(paste0(date_i, " ", hour, ":00"))
 #   ggsave(glue("figs/mesh/temp/mesh_temp_1h_{focus}_{str_pad(i,4,'l','0')}.png"),
-#          p.i, width=9, height=4, dpi=300)
+#          p.i, width=9, height=5, dpi=300)
 # }
 # for(i in 1:length(elem.times)) {
 #   i.int <- as.integer(i)
@@ -205,53 +211,81 @@ vertSpeed.rng <- range(elem.sf$vertSpeed)
 #     facet_grid(.~meshRes) +
 #     ggtitle(paste0(date_i, " ", hour, ":00"))
 #   ggsave(glue("figs/mesh/temp/mesh_currentSpeed_1h_{focus}_{str_pad(i,4,'l','0')}.png"),
-#          p.i, width=9, height=4, dpi=300)
+#          p.i, width=9, height=5, dpi=300)
 # }
-for(i in 111:length(elem.times)) {
-  i.int <- as.integer(i)
-  date_i <- date(elem.times[i])
-  hour <- str_pad(hour(elem.times[i]), 2, "l", "0")
+# for(i in 1:length(elem.times)) {
+#   i.int <- as.integer(i)
+#   date_i <- date(elem.times[i])
+#   hour <- str_pad(hour(elem.times[i]), 2, "l", "0")
+# 
+#   p.i <- elem.sf %>%
+#     filter(timeCalculated==elem.times[i.int]) %>%
+#     ggplot(aes(fill=vertSpeed)) +
+#     geom_sf(colour=NA) +
+#     scale_fill_gradient2("ww speed (m/s)", limits=vertSpeed.rng, mid="grey95") +
+#     facet_grid(.~meshRes) +
+#     ggtitle(paste0(date_i, " ", hour, ":00"))
+#   ggsave(glue("figs/mesh/temp/mesh_vertSpeed_1h_{focus}_{str_pad(i,4,'l','0')}.png"),
+#          p.i, width=9, height=5, dpi=300)
+# }
+# for(i in 1:length(elem.times)) {
+#   i.int <- as.integer(i)
+#   date_i <- date(elem.times[i])
+#   hour <- str_pad(hour(elem.times[i]), 2, "l", "0")
+#   
+#   p.i <- elem.sf %>%
+#     filter(timeCalculated==elem.times[i.int]) %>%
+#     ggplot(aes(fill=ln_vertSpeed)) +
+#     geom_sf(colour=NA) +
+#     scale_fill_viridis_c("ln(ww speed) (ln(m/s))", limits=ln_vertSpeed.rng) +
+#     facet_grid(.~meshRes) +
+#     ggtitle(paste0(date_i, " ", hour, ":00"))
+#   ggsave(glue("figs/mesh/temp/mesh_ln_vertSpeed_1h_{focus}_{str_pad(i,4,'l','0')}.png"),
+#          p.i, width=9, height=5, dpi=300)
+# }
 
-  p.i <- elem.sf %>%
-    filter(timeCalculated==elem.times[i.int]) %>%
-    ggplot(aes(fill=vertSpeed)) +
-    geom_sf(colour=NA) +
-    scale_fill_gradient2("ww speed (m/s)", limits=vertSpeed.rng, mid="grey95") +
-    facet_grid(.~meshRes) +
-    ggtitle(paste0(date_i, " ", hour, ":00"))
-  ggsave(glue("figs/mesh/temp/mesh_vertSpeed_1h_{focus}_{str_pad(i,4,'l','0')}.png"),
-         p.i, width=9, height=4, dpi=300)
-}
 
+
+# animations --------------------------------------------------------------
+
+hours_per_s <- 4
+# 
 # cat("Making salinity 1h\n")
-# dir("figs/mesh/temp", glue("mesh_salinity_1h_{focus}_"), full.names=T) %>%
+# dir("figs/mesh/temp", glue("mesh_salinity_1h_{focus}_"), full.names=T)[1:169] %>%
 #   image_read() %>%
 #   image_join() %>%
 #   image_animate(delay=1/hours_per_s, optimize=T) %>%
 #   image_write(glue("figs/mesh/mesh_salinity_1h_{focus}.gif"))
 # 
 # cat("Making temp 1h\n")
-# dir("figs/mesh/temp", glue("mesh_temp_1h_{focus}_"), full.names=T) %>%
+# dir("figs/mesh/temp", glue("mesh_temp_1h_{focus}_"), full.names=T)[1:169] %>%
 #   image_read() %>%
 #   image_join() %>%
-#   image_animate(delay=1/hours_per_s, optimize=) %>%
+#   image_animate(delay=1/hours_per_s, optimize=T) %>%
 #   image_write(glue("figs/mesh/mesh_temperature_1h_{focus}.gif"))
-
-cat("Making currentSpeed 1h\n")
-dir("figs/mesh/temp", glue("mesh_currentSpeed_1h_{focus}_"), full.names=T) %>% 
-  image_read() %>% 
-  image_join() %>% 
-  image_animate(delay=1/hours_per_s) %>% 
-  image_write(glue("figs/mesh/mesh_currentSpeed_1h_{focus}.gif"))
-
-cat("Making vertSpeed 1h\n")
-dir("figs/mesh/temp", glue("mesh_vertSpeed_1h_{focus}_"), full.names=T) %>% 
-  image_read() %>% 
-  image_join() %>% 
-  image_animate(delay=1/hours_per_s) %>% 
-  image_write(glue("figs/mesh/mesh_vertSpeed_1h_{focus}.gif"))
-
-rm(elem.sf)
+# 
+# cat("Making currentSpeed 1h\n")
+# dir("figs/mesh/temp", glue("mesh_currentSpeed_1h_{focus}_"), full.names=T)[1:169] %>% 
+#   image_read() %>% 
+#   image_join() %>% 
+#   image_animate(delay=1/hours_per_s, optimize=T) %>% 
+#   image_write(glue("figs/mesh/mesh_currentSpeed_1h_{focus}.gif"))
+# 
+# cat("Making vertSpeed 1h\n")
+# dir("figs/mesh/temp", glue("mesh_vertSpeed_1h_{focus}_"), full.names=T)[1:169] %>% 
+#   image_read() %>% 
+#   image_join() %>% 
+#   image_animate(delay=1/hours_per_s, optimize=T) %>% 
+#   image_write(glue("figs/mesh/mesh_vertSpeed_1h_{focus}.gif"))
+# 
+# cat("Making ln vertSpeed 1h\n")
+# dir("figs/mesh/temp", glue("mesh_ln_vertSpeed_1h_{focus}_"), full.names=T)[1:169] %>% 
+#   image_read() %>% 
+#   image_join() %>% 
+#   image_animate(delay=1/hours_per_s, optimize=T) %>% 
+#   image_write(glue("figs/mesh/mesh_ln_vertSpeed_1h_{focus}.gif"))
+# 
+# rm(elem.sf)
 
 
 
@@ -260,14 +294,16 @@ rm(elem.sf)
 
 node.df <- readRDS("temp/node_df.rds") %>%
   filter(grepl("5min", meshRes)) %>%
-  filter(!is.na(timeCalculated)) %>% 
+  filter(!is.na(timeCalculated)) %>%
   rename(trinode=i)
 
 elem.sf <- left_join(mesh.sf,
                      readRDS("temp/elem_df.rds") %>%
                        filter(grepl("5min", meshRes)) %>%
                        mutate(mesh=str_split_fixed(meshRes, ",", 2)[,1])) %>%
-  filter(!is.na(timeCalculated)) %>% 
+  filter(!is.na(timeCalculated)) %>%
+  filter(timeCalculated >= "2021-11-05 00:00:00") %>%
+  filter(timeCalculated <= "2021-11-08 00:00:00") %>%
   left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_1"="trinode"), suffix=c("", "_1")) %>%
   left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_2"="trinode"), suffix=c("", "_2")) %>%
   left_join(node.df, by=c("meshRes", "timeCalculated", "trinode_3"="trinode"), suffix=c("", "_3")) %>%
@@ -276,21 +312,27 @@ elem.sf <- left_join(mesh.sf,
            sum(!is.na(temp), !is.na(temp_2), !is.na(temp_3)),
          salinity_i=sum(salinity, salinity_2, salinity_3, na.rm=T)/
            sum(!is.na(salinity), !is.na(salinity_2), !is.na(salinity_3))) %>%
-  select(-temp, -temp_2, -temp_3, -salinity, -salinity_2, -salinity_3, -starts_with("trinode"))
+  ungroup %>%
+  select(-temp, -temp_2, -temp_3, -salinity, -salinity_2, -salinity_3, -starts_with("trinode")) %>%
+  mutate(ln_vertSpeed=if_else(vertSpeed==0, -20, log(abs(vertSpeed))))
 
 rm(node.df); gc()
+st_write(elem.sf, glue("temp/elem_sf_5min_{focus}.gpkg"))
+
 
 elem.times <- sort(unique(elem.sf$timeCalculated))
 sal.rng <- range(elem.sf$salinity_i)
 temp.rng <- range(elem.sf$temp_i)
 currentSpeed.rng <- range(elem.sf$currentSpeed)
 vertSpeed.rng <- range(elem.sf$vertSpeed)
+ln_vertSpeed.rng <- range(elem.sf$ln_vertSpeed)
+
 for(i in 1:length(elem.times)) {
   i.int <- as.integer(i)
   date_i <- date(elem.times[i])
   hour <- str_pad(hour(elem.times[i]), 2, "l", "0")
-  minutes <- str_pad(minute(elem.time[i]), 2, "l", "0")
-  
+  minutes <- str_pad(minute(elem.times[i]), 2, "l", "0")
+
   p.i <- elem.sf %>%
     filter(timeCalculated==elem.times[i.int]) %>%
     ggplot(aes(fill=salinity_i)) +
@@ -299,15 +341,15 @@ for(i in 1:length(elem.times)) {
                          limits=sal.rng) +
     facet_grid(.~meshRes) +
     ggtitle(paste0(date_i, " ", hour, ":00:", minutes))
-  ggsave(glue("figs/mesh/temp/mesh_salinity_5min_{focus}_{str_pad(i,4,'l','0')}.png"), 
+  ggsave(glue("figs/mesh/temp/mesh_salinity_5min_{focus}_{str_pad(i,4,'l','0')}.png"),
          p.i, width=9, height=4, dpi=300)
 }
 for(i in 1:length(elem.times)) {
   i.int <- as.integer(i)
   date_i <- date(elem.times[i])
   hour <- str_pad(hour(elem.times[i]), 2, "l", "0")
-  minutes <- str_pad(minute(elem.time[i]), 2, "l", "0")
-  
+  minutes <- str_pad(minute(elem.times[i]), 2, "l", "0")
+
   p.i <- elem.sf %>%
     filter(timeCalculated==elem.times[i.int]) %>%
     ggplot(aes(fill=temp_i)) +
@@ -315,7 +357,7 @@ for(i in 1:length(elem.times)) {
     scale_fill_distiller("Temperature (C)", type="div", palette="RdBu", limits=temp.rng) +
     facet_grid(.~meshRes) +
     ggtitle(paste0(date_i, " ", hour, ":00:", minutes))
-  ggsave(glue("figs/mesh/temp/mesh_temp_5min_{focus}_{str_pad(i,4,'l','0')}.png"), 
+  ggsave(glue("figs/mesh/temp/mesh_temp_5min_{focus}_{str_pad(i,4,'l','0')}.png"),
          p.i, width=9, height=4, dpi=300)
 }
 
@@ -323,8 +365,8 @@ for(i in 1:length(elem.times)) {
   i.int <- as.integer(i)
   date_i <- date(elem.times[i])
   hour <- str_pad(hour(elem.times[i]), 2, "l", "0")
-  minutes <- str_pad(minute(elem.time[i]), 2, "l", "0")
-  
+  minutes <- str_pad(minute(elem.times[i]), 2, "l", "0")
+
   p.i <- elem.sf %>%
     filter(timeCalculated==elem.times[i.int]) %>%
     ggplot(aes(fill=currentSpeed)) +
@@ -332,7 +374,7 @@ for(i in 1:length(elem.times)) {
     scale_fill_viridis_c("uv speed (m/s)", limits=currentSpeed.rng) +
     facet_grid(.~meshRes) +
     ggtitle(paste0(date_i, " ", hour, ":00:", minutes))
-  ggsave(glue("figs/mesh/temp/mesh_currentSpeed_5min_{focus}_{str_pad(i,4,'l','0')}.png"), 
+  ggsave(glue("figs/mesh/temp/mesh_currentSpeed_5min_{focus}_{str_pad(i,4,'l','0')}.png"),
          p.i, width=9, height=4, dpi=300)
 }
 
@@ -340,8 +382,8 @@ for(i in 1:length(elem.times)) {
   i.int <- as.integer(i)
   date_i <- date(elem.times[i])
   hour <- str_pad(hour(elem.times[i]), 2, "l", "0")
-  minutes <- str_pad(minute(elem.time[i]), 2, "l", "0")
-  
+  minutes <- str_pad(minute(elem.times[i]), 2, "l", "0")
+
   p.i <- elem.sf %>%
     filter(timeCalculated==elem.times[i.int]) %>%
     ggplot(aes(fill=vertSpeed)) +
@@ -349,7 +391,23 @@ for(i in 1:length(elem.times)) {
     scale_fill_gradient2("ww speed (m/s)", limits=vertSpeed.rng, mid="grey95") +
     facet_grid(.~meshRes) +
     ggtitle(paste0(date_i, " ", hour, ":00:", minutes))
-  ggsave(glue("figs/mesh/temp/mesh_vertSpeed_5min_{focus}_{str_pad(i,4,'l','0')}.png"), 
+  ggsave(glue("figs/mesh/temp/mesh_vertSpeed_5min_{focus}_{str_pad(i,4,'l','0')}.png"),
+         p.i, width=9, height=4, dpi=300)
+}
+
+for(i in 1:length(elem.times)) {
+  i.int <- as.integer(i)
+  date_i <- date(elem.times[i])
+  hour <- str_pad(hour(elem.times[i]), 2, "l", "0")
+
+  p.i <- elem.sf %>%
+    filter(timeCalculated==elem.times[i.int]) %>%
+    ggplot(aes(fill=ln_vertSpeed)) +
+    geom_sf(colour=NA) +
+    scale_fill_viridis_c("ln(ww speed) (ln(m/s))", limits=ln_vertSpeed.rng) +
+    facet_grid(.~meshRes) +
+    ggtitle(paste0(date_i, " ", hour, ":00"))
+  ggsave(glue("figs/mesh/temp/mesh_ln_vertSpeed_5min_{focus}_{str_pad(i,4,'l','0')}.png"),
          p.i, width=9, height=4, dpi=300)
 }
 
@@ -357,51 +415,56 @@ cat("Making salinity 5min\n")
 dir("figs/mesh/temp", glue("mesh_salinity_5min_{focus}_"), full.names=T) %>%
   image_read() %>%
   image_join() %>%
-  image_animate(delay=1/(12*hours_per_s)) %>%
+  image_animate(delay=1/(12*hours_per_s), optimize=T) %>%
   image_write(glue("figs/mesh/mesh_salinity_5min_{focus}.gif"))
 
 cat("Making temp 5min\n")
 dir("figs/mesh/temp", glue("mesh_temp_5min_{focus}_"), full.names=T) %>%
   image_read() %>%
   image_join() %>%
-  image_animate(delay=1/(12*hours_per_s)) %>%
+  image_animate(delay=1/(12*hours_per_s), optimize=T) %>%
   image_write(glue("figs/mesh/mesh_temp_5min_{focus}.gif"))
 
 cat("Making currentSpeed 5min\n")
 dir("figs/mesh/temp", glue("mesh_currentSpeed_5min_{focus}_"), full.names=T) %>% 
   image_read() %>% 
   image_join() %>% 
-  image_animate(delay=1/(12*hours_per_s)) %>% 
+  image_animate(delay=1/(12*hours_per_s), optimize=T) %>% 
   image_write(glue("figs/mesh/mesh_currentSpeed_5min_{focus}.gif"))
 
 cat("Making vertSpeed 5min\n")
 dir("figs/mesh/temp", glue("mesh_vertSpeed_5min_{focus}_"), full.names=T) %>% 
   image_read() %>% 
   image_join() %>% 
-  image_animate(delay=1/(12*hours_per_s)) %>% 
+  image_animate(delay=1/(12*hours_per_s), optimize=T) %>% 
   image_write(glue("figs/mesh/mesh_vertSpeed_5min_{focus}.gif"))
 
-rm(elem.sf)
+cat("Making lnvertSpeed 5min\n")
+dir("figs/mesh/temp", glue("mesh_ln_vertSpeed_5min_{focus}_"), full.names=T) %>% 
+  image_read() %>% 
+  image_join() %>% 
+  image_animate(delay=1/(12*hours_per_s), optimize=T) %>% 
+  image_write(glue("figs/mesh/mesh_ln_vertSpeed_5min_{focus}.gif"))
 
 
+
+
+
+
+
+# salinity profiles -------------------------------------------------------
 # 
-# 
-# 
-# 
-# # salinity profiles -------------------------------------------------------
-# 
-# glue("out/salinity_profile_{par.df$mesh[j]}_{par.df$tRes[j]}.csv")
 # 
 # site.i <- read_tsv("data/fishFarmSites.tsv", col_names=c("site", "x", "y"))
 # for(i in 1:nrow(site.i)) {
-#   prof.df <- dir("out", glue("salinity_profile_{site.i$site[i]}")) %>% 
-#     map_dfr(~read_csv(paste0("out/", .x)) %>% 
+#   salProf.df <- dir("out", glue("salinity_profile_{site.i$site[i]}")) %>%
+#     map_dfr(~read_csv(paste0("out/", .x)) %>%
 #               mutate(meshRes=str_sub(.x, 25, -5))) %>%
 #     mutate(meshRes=str_replace(meshRes, "_", ", "))
-#   
-#   prof.df %>%
+# 
+#   salProf.df %>%
 #     ggplot(aes(fill=salinity)) +
-#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) + 
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
 #     scale_fill_distiller(palette="Blues", direction=1, limits=c(10, 32)) +
 #     scale_y_continuous("Depth (m)") +
 #     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
@@ -409,14 +472,14 @@ rm(elem.sf)
 #     ggtitle(site.i$site[i]) +
 #     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
 #           axis.title.x=element_blank())
-#   ggsave(glue("figs/mesh/salinity_profiles_{site.i$site[i]}.png"), 
+#   ggsave(glue("figs/mesh/salinity_profiles_{site.i$site[i]}.png"),
 #          width=7, height=6, dpi=300)
-#   
-#   prof.df %>%
-#     filter(timeStart >= "2021-11-05 00:00:00" & 
-#              timeEnd <= "2021-11-07 00:00:00") %>%
+# 
+#   salProf.df %>%
+#     filter(timeStart >= "2021-11-03 00:00:00" &
+#              timeEnd <= "2021-11-05 00:00:00") %>%
 #     ggplot(aes(fill=salinity)) +
-#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) + 
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
 #     scale_fill_distiller(palette="Blues", direction=1, limits=c(10, 33)) +
 #     scale_y_continuous("Depth (m)", limits=c(-30, 0)) +
 #     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
@@ -424,14 +487,14 @@ rm(elem.sf)
 #     ggtitle(site.i$site[i]) +
 #     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
 #           axis.title.x=element_blank())
-#   ggsave(glue("figs/mesh/salinity_profiles_2days_{site.i$site[i]}.png"), 
+#   ggsave(glue("figs/mesh/salinity_profiles_2days_{site.i$site[i]}.png"),
 #          width=7, height=6, dpi=300)
-#   
-#   prof.df %>%
-#     filter(timeStart >= "2021-11-06 00:00:00" & 
-#              timeEnd <= "2021-11-07 00:00:00") %>%
+# 
+#   salProf.df %>%
+#     filter(timeStart >= "2021-11-04 00:00:00" &
+#              timeEnd <= "2021-11-05 00:00:00") %>%
 #     ggplot(aes(fill=salinity)) +
-#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) + 
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
 #     scale_fill_distiller(palette="Blues", direction=1, limits=c(10, 33)) +
 #     scale_y_continuous("Depth (m)", limits=c(-30, 0)) +
 #     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
@@ -439,7 +502,105 @@ rm(elem.sf)
 #     ggtitle(site.i$site[i]) +
 #     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
 #           axis.title.x=element_blank())
-#   ggsave(glue("figs/mesh/salinity_profiles_1day_{site.i$site[i]}.png"), 
+#   ggsave(glue("figs/mesh/salinity_profiles_1day_{site.i$site[i]}.png"),
+#          width=7, height=6, dpi=300)
+#   
+#   
+#   uvProf.df <- dir("out", glue("uv_profile_{site.i$site[i]}")) %>%
+#     map_dfr(~read_csv(paste0("out/", .x)) %>%
+#               mutate(meshRes=str_sub(.x, 19, -5))) %>%
+#     mutate(meshRes=str_replace(meshRes, "_", ", "))
+#   
+#   uvProf.df %>%
+#     ggplot(aes(fill=uploch_velocity)) +
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+#     scale_fill_gradient2("Uploch velocity\n(m/s)") +
+#     scale_y_continuous("Depth (m)") +
+#     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
+#     facet_wrap(~meshRes) +
+#     ggtitle(site.i$site[i]) +
+#     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
+#           axis.title.x=element_blank())
+#   ggsave(glue("figs/mesh/uv_profiles_{site.i$site[i]}.png"),
+#          width=7, height=6, dpi=300)
+#   
+#   uvProf.df %>%
+#     filter(timeStart >= "2021-11-03 00:00:00" &
+#              timeEnd <= "2021-11-05 00:00:00") %>%
+#     ggplot(aes(fill=uploch_velocity)) +
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+#     scale_fill_gradient2("Uploch velocity\n(m/s)") +
+#     scale_y_continuous("Depth (m)", limits=c(-30, 0)) +
+#     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
+#     facet_wrap(~meshRes) +
+#     ggtitle(site.i$site[i]) +
+#     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
+#           axis.title.x=element_blank())
+#   ggsave(glue("figs/mesh/uv_profiles_2days_{site.i$site[i]}.png"),
+#          width=7, height=6, dpi=300)
+#   
+#   uvProf.df %>%
+#     filter(timeStart >= "2021-11-04 00:00:00" &
+#              timeEnd <= "2021-11-05 00:00:00") %>%
+#     ggplot(aes(fill=uploch_velocity)) +
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+#     scale_fill_gradient2("Uploch velocity\n(m/s)") +
+#     scale_y_continuous("Depth (m)", limits=c(-30, 0)) +
+#     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
+#     facet_wrap(~meshRes) +
+#     ggtitle(site.i$site[i]) +
+#     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
+#           axis.title.x=element_blank())
+#   ggsave(glue("figs/mesh/uv_profiles_1day_{site.i$site[i]}.png"),
+#          width=7, height=6, dpi=300)
+#   
+#   
+#   wwProf.df <- dir("out", glue("ww_profile_{site.i$site[i]}")) %>%
+#     map_dfr(~read_csv(paste0("out/", .x)) %>%
+#               mutate(meshRes=str_sub(.x, 19, -5))) %>%
+#     mutate(meshRes=str_replace(meshRes, "_", ", "))
+#   
+#   wwProf.df %>%
+#     ggplot(aes(fill=upward_velocity)) +
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+#     scale_fill_gradient2("Upward velocity\n(m/s)", low="#762a83", mid="grey95", high="#1b7837") +
+#     scale_y_continuous("Depth (m)") +
+#     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
+#     facet_wrap(~meshRes) +
+#     ggtitle(site.i$site[i]) +
+#     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
+#           axis.title.x=element_blank())
+#   ggsave(glue("figs/mesh/ww_profiles_{site.i$site[i]}.png"),
+#          width=7, height=6, dpi=300)
+#   
+#   wwProf.df %>%
+#     filter(timeStart >= "2021-11-03 00:00:00" &
+#              timeEnd <= "2021-11-05 00:00:00") %>%
+#     ggplot(aes(fill=upward_velocity)) +
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+#     scale_fill_gradient2("Upward velocity\n(m/s)", low="#762a83", mid="grey95", high="#1b7837") +
+#     scale_y_continuous("Depth (m)", limits=c(-30, 0)) +
+#     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
+#     facet_wrap(~meshRes) +
+#     ggtitle(site.i$site[i]) +
+#     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
+#           axis.title.x=element_blank())
+#   ggsave(glue("figs/mesh/ww_profiles_2days_{site.i$site[i]}.png"),
+#          width=7, height=6, dpi=300)
+#   
+#   wwProf.df %>%
+#     filter(timeStart >= "2021-11-04 00:00:00" &
+#              timeEnd <= "2021-11-05 00:00:00") %>%
+#     ggplot(aes(fill=upward_velocity)) +
+#     geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+#     scale_fill_gradient2("Upward velocity\n(m/s)", low="#762a83", mid="grey95", high="#1b7837") +
+#     scale_y_continuous("Depth (m)", limits=c(-30, 0)) +
+#     scale_x_datetime("", date_breaks="1 day", date_labels="%d-%b") +
+#     facet_wrap(~meshRes) +
+#     ggtitle(site.i$site[i]) +
+#     theme(axis.text.x=element_text(angle=300, hjust=0, vjust=0.5),
+#           axis.title.x=element_blank())
+#   ggsave(glue("figs/mesh/ww_profiles_1day_{site.i$site[i]}.png"),
 #          width=7, height=6, dpi=300)
 # }
-# 
+
