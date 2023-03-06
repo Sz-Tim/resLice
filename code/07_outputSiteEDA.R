@@ -119,11 +119,11 @@ fill_NSEW <- scale_fill_gradientn(colours=cmr$infinity, limits=c(-pi, pi),
 col_NSEW <- scale_colour_gradientn(colours=cmr$infinity, limits=c(-pi, pi),
                                    breaks=c(-pi, -pi/2, 0, pi/2, pi),
                                    labels=c("W", "S", "E", "N", "W"))
-col_downloch <- scale_colour_gradient2("Direction", limits=c(-1,1), 
+col_uploch <- scale_colour_gradient2("Direction", limits=c(-1,1), 
                                        breaks=c(-1,1), 
-                                       labels=c("uploch", "downloch"))
-fill_downloch <- scale_fill_gradient2("Direction", midpoint=0.5, 
-                                      breaks=c(0, 1), labels=c("downloch", "uploch"),
+                                       labels=c("downloch", "uploch"))
+fill_uploch <- scale_fill_gradient2("Direction", midpoint=0.5, 
+                                      breaks=c(0, 1), labels=c("uploch", "downloch"),
                                       low=scales::muted("blue"), 
                                       mid="grey90",
                                       high=scales::muted("red"))
@@ -168,21 +168,19 @@ col_meshRes <- c("linnhe7, 1h"="#a6611a", "linnhe7, 5min"="#dfc27d",
 # aging.df <- loc.df %>% 
 #   # filter(startDate == 20211101) %>%
 #   filter(ID %in% part.samp) %>%
-#   filter(status != 666) %>%
+#   filter(meshParticle!="Beyond Linnhe"6) %>%
 #   filter(density > 0 & density < 1) %>%
 #   mutate(dens_logit=logit_scaled(density),
 #          age_sqrt=sqrt(age))
 # ageDensity.brm <- brm(dens_logit ~ age_sqrt*meshRes*liceSpeedF + (1+age_sqrt|startLocation/ID),
 #                       data=aging.df, cores=4)
 
+
 library(ggridges)
 loc.df %>% 
   filter(status==2) %>%
   filter(density > 0) %>%
-  mutate(density=brms::logit_scaled(density),
-         mainLoch=if_else(is.na(mainLoch), 2L, mainLoch),
-         mainLoch=factor(mainLoch, levels=c(2,0,1), 
-                         labels=c("Beyond Linnhe", "Side lochs", "Main loch"))) %>%
+  mutate(density=brms::logit_scaled(density)) %>%
   ggplot(aes(density, y=mainLoch, colour=meshRes, fill=meshRes)) + 
   ggridges::geom_density_ridges(alpha=0.25, scale=0.9) +
   scale_fill_manual("Mesh", values=col_meshRes) +
@@ -193,11 +191,8 @@ ggsave(glue("figs/init{initDensity}/copepodDensity_mainLoch.png"), height=5, wid
 loc.df %>% 
   filter(status==2) %>%
   filter(density > 0) %>%
-  mutate(density=brms::logit_scaled(density),
-         lochRegion=if_else(is.na(lochRegion), 8, lochRegion),
-         lochRegion=factor(lochRegion, levels=1:8, 
-                           labels=c(unique(mesh.lochRegions$lochRegionF), "Beyond Linnhe"))) %>%
-  ggplot(aes(density, y=lochRegion, colour=meshRes, fill=meshRes)) + 
+  mutate(density=brms::logit_scaled(density)) %>%
+  ggplot(aes(density, y=lochRegionF, colour=meshRes, fill=meshRes)) + 
   ggridges::geom_density_ridges(alpha=0.25, scale=0.9) +
   scale_fill_manual("Mesh", values=col_meshRes) +
   scale_colour_manual("Mesh", values=col_meshRes) +
@@ -206,36 +201,45 @@ loc.df %>%
 ggsave(glue("figs/init{initDensity}/copepodDensity_lochRegion.png"), height=7, width=7)
 loc.df %>% 
   filter(status==2) %>%
-  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegion) %>% 
+  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegionF) %>% 
   summarise(nPart=n(), 
             dens_tot=sum(density)) %>%
-  mutate(lochRegion=if_else(is.na(lochRegion), 8, lochRegion),
-         lochRegion=factor(lochRegion, levels=1:8, 
-                           labels=c(unique(mesh.lochRegions$lochRegionF), "Beyond Linnhe")),
-         lochRegion=factor(lochRegion, levels=levels(lochRegion)[c(6,1:3,4,5,7,8)])) %>%
   ggplot(aes(liceSpeedF, dens_tot, fill=meshRes)) +
   geom_bar(stat="identity", position="dodge", colour="grey30") + 
   scale_fill_manual("Mesh", values=col_meshRes) +
-  facet_wrap(~lochRegion, nrow=2) +
+  facet_wrap(~lochRegionF, nrow=2) +
   labs(x="Lice vertical speed", y="Integrated copepodid density") +
   theme(axis.text.x=element_text(angle=310, hjust=0, vjust=0.5),
         legend.position="bottom")
 ggsave(glue("figs/init{initDensity}/copepodDensityTotal_lochRegion.png"), height=6, width=8)
 loc.df %>% 
   filter(status==2) %>%
+  filter(depth < 30) %>%
+  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegionF) %>% 
+  summarise(nPart=n(), 
+            dens_tot=sum(density),
+            totVolTop30=first(vol30_region)) %>%
+  mutate(dens_m3=dens_tot/totVolTop30) %>%
+  ggplot(aes(liceSpeedF, dens_m3, fill=meshRes)) +
+  geom_bar(stat="identity", position="dodge", colour="grey30") + 
+  scale_fill_manual("Mesh", values=col_meshRes) +
+  facet_wrap(~lochRegionF, nrow=2) +
+  labs(x="Lice vertical speed", 
+       y=expression("Integrated copepodid density in top 30m ("~'m'^-3~")")) +
+  theme(axis.text.x=element_text(angle=310, hjust=0, vjust=0.5),
+        legend.position="bottom")
+ggsave(glue("figs/init{initDensity}/copepodDensityTotal_m3_lochRegion.png"), height=6, width=8)
+loc.df %>% 
+  filter(status==2) %>%
   filter(density > 0) %>%
-  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegion) %>% 
+  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegionF) %>% 
   summarise(nPart=n()) %>%
   group_by(mesh, timeRes, meshRes, liceSpeedF) %>%
-  mutate(propPart=nPart/sum(nPart),
-         lochRegion=if_else(is.na(lochRegion), 8, lochRegion),
-         lochRegion=factor(lochRegion, levels=1:8, 
-                           labels=c(unique(mesh.lochRegions$lochRegionF), "Beyond Linnhe")),
-         lochRegion=factor(lochRegion, levels=levels(lochRegion)[c(6,1:3,4,5,7,8)])) %>%
+  mutate(propPart=nPart/sum(nPart)) %>%
   ggplot(aes(liceSpeedF, propPart, fill=meshRes)) +
   geom_bar(stat="identity", position="dodge", colour="grey30") + 
   scale_fill_manual("Mesh", values=col_meshRes) +
-  facet_wrap(~lochRegion, nrow=2) +
+  facet_wrap(~lochRegionF, nrow=2) +
   labs(x="Lice vertical speed", y="Proportion of particle-hours") +
   theme(axis.text.x=element_text(angle=310, hjust=0, vjust=0.5),
         legend.position="bottom")
@@ -246,8 +250,6 @@ loc.df %>%
   group_by(mesh, timeRes, meshRes, liceSpeedF, mainLoch) %>% 
   summarise(nPart=n(), 
             dens_tot=sum(density)) %>%
-  mutate(mainLoch=if_else(is.na(mainLoch), 2L, mainLoch),
-         mainLoch=factor(mainLoch, levels=0:2, labels=c("Side lochs", "Main loch", "Beyond Linnhe"))) %>%
   ggplot(aes(liceSpeedF, dens_tot, fill=meshRes)) +
   geom_bar(stat="identity", position="dodge", colour="grey30") + 
   scale_fill_manual("Mesh", values=col_meshRes) +
@@ -258,13 +260,28 @@ loc.df %>%
 ggsave(glue("figs/init{initDensity}/copepodDensityTotal_mainLoch.png"), height=4, width=6)
 loc.df %>% 
   filter(status==2) %>%
+  filter(depth < 30) %>%
+  group_by(mesh, timeRes, meshRes, liceSpeedF, mainLoch) %>% 
+  summarise(nPart=n(), 
+            dens_tot=sum(density),
+            totVolTop30=first(vol30_mainSide)) %>%
+  mutate(dens_m3=dens_tot/totVolTop30) %>%
+  ggplot(aes(liceSpeedF, dens_m3, fill=meshRes)) +
+  geom_bar(stat="identity", position="dodge", colour="grey30") + 
+  scale_fill_manual("Mesh", values=col_meshRes) +
+  facet_wrap(~mainLoch, nrow=1) +
+  labs(x="Lice vertical speed", 
+       y=expression("Integrated copepodid density in top 30m ("~'m'^-3~")")) +
+  theme(axis.text.x=element_text(angle=310, hjust=0, vjust=0.5),
+        legend.position="bottom")
+ggsave(glue("figs/init{initDensity}/copepodDensityTotal_m3_mainLoch.png"), height=6, width=8)
+loc.df %>% 
+  filter(status==2) %>%
   # filter(density > 0) %>%
   group_by(mesh, timeRes, meshRes, liceSpeedF, mainLoch) %>% 
   summarise(nPart=n()) %>%
   group_by(mesh, timeRes, meshRes, liceSpeedF) %>%
-  mutate(propPart=nPart/sum(nPart),
-         mainLoch=if_else(is.na(mainLoch), 2L, mainLoch),
-         mainLoch=factor(mainLoch, levels=0:2, labels=c("Side lochs", "Main loch", "Beyond Linnhe"))) %>%
+  mutate(propPart=nPart/sum(nPart)) %>%
   ggplot(aes(liceSpeedF, propPart, fill=meshRes)) +
   geom_bar(stat="identity", position="dodge", colour="grey30") + 
   scale_fill_manual("Mesh", values=col_meshRes) +
@@ -279,8 +296,6 @@ loc.df %>%
   filter(status==2) %>%
   group_by(mesh, timeRes, meshRes, liceSpeedF, mainLoch, timeCalculated) %>% 
   summarise(dens_tot=sum(density)) %>%
-  mutate(mainLoch=if_else(is.na(mainLoch), 2L, mainLoch),
-         mainLoch=factor(mainLoch, levels=0:2, labels=c("Side lochs", "Main loch", "Beyond Linnhe"))) %>%
   ggplot(aes(timeCalculated, dens_tot, colour=meshRes, linetype=liceSpeedF)) + 
   geom_line() + 
   scale_linetype_manual("Lice\nspeed", values=1:3) +
@@ -291,25 +306,86 @@ loc.df %>%
   theme(legend.position="bottom",
         axis.text.x=element_text(angle=310, hjust=0, vjust=0.5))
 ggsave(glue("figs/init{initDensity}/copepodTimeDensity_mainLoch.png"), height=4, width=8)
+loc.df %>% 
+  filter(status==2) %>%
+  filter(depth < 30) %>%
+  group_by(mesh, timeRes, meshRes, liceSpeedF, mainLoch, timeCalculated) %>% 
+  summarise(dens_tot=sum(density),
+            vol=first(vol30_mainSide)) %>%
+  ggplot(aes(timeCalculated, dens_tot/vol, colour=meshRes, linetype=liceSpeedF)) + 
+  geom_line() + 
+  scale_linetype_manual("Lice\nspeed", values=1:3) +
+  scale_colour_manual("Mesh", values=col_meshRes) +
+  guides(colour=guide_legend(ncol=2)) +
+  facet_grid(.~mainLoch) +
+  labs(x="Date", y=expression("Copepodid density in top 30m ("~'m'^-3~")")) +
+  theme(legend.position="bottom",
+        axis.text.x=element_text(angle=310, hjust=0, vjust=0.5))
+ggsave(glue("figs/init{initDensity}/copepodTimeDensity_m3_mainLoch.png"), height=4, width=8)
+loc.df %>% 
+  filter(status==2) %>%
+  filter(depth < 30) %>%
+  group_by(mesh, timeRes, meshRes, liceSpeedF, mainLoch, timeCalculated) %>% 
+  summarise(dens_tot=sum(density),
+            vol=first(vol30_mainSide)) %>%
+  ggplot(aes(timeCalculated, log10(dens_tot/vol), colour=meshRes, linetype=liceSpeedF)) + 
+  geom_line() + 
+  scale_linetype_manual("Lice\nspeed", values=1:3) +
+  scale_colour_manual("Mesh", values=col_meshRes) +
+  guides(colour=guide_legend(ncol=2)) +
+  facet_grid(.~mainLoch) +
+  labs(x="Date", y=expression("Copepodid density in top 30m ("~'log10 m'^-3~")")) +
+  theme(legend.position="bottom",
+        axis.text.x=element_text(angle=310, hjust=0, vjust=0.5))
+ggsave(glue("figs/init{initDensity}/copepodTimeDensity_log_m3_mainLoch.png"), height=4, width=8)
 
 loc.df %>% 
   filter(status==2) %>%
-  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegion, timeCalculated) %>% 
+  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegionF, timeCalculated) %>% 
   summarise(dens_tot=sum(density)) %>%
-  mutate(lochRegion=if_else(is.na(lochRegion), 8, lochRegion),
-         lochRegion=factor(lochRegion, levels=1:8, 
-                           labels=c(unique(mesh.lochRegions$lochRegionF), "Beyond Linnhe")),
-         lochRegion=factor(lochRegion, levels=levels(lochRegion)[c(6,1:3,4,5,7,8)])) %>%
   ggplot(aes(timeCalculated, dens_tot, colour=meshRes, linetype=liceSpeedF)) + 
   geom_line() + 
   scale_linetype_manual("Lice\nspeed", values=1:3) +
   scale_colour_manual("Mesh", values=col_meshRes) +
   guides(colour=guide_legend(ncol=2)) +
-  facet_wrap(~lochRegion, nrow=2) +
+  facet_wrap(~lochRegionF, nrow=2) +
   labs(x="Date", y="Copepodid density") +
   theme(legend.position="bottom",
         axis.text.x=element_text(angle=310, hjust=0, vjust=0.5))
 ggsave(glue("figs/init{initDensity}/copepodTimeDensity_lochRegion.png"), height=6, width=8)
+
+loc.df %>% 
+  filter(depth < 30) %>%
+  filter(status==2) %>%
+  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegionF, timeCalculated) %>% 
+  summarise(dens_tot=sum(density),
+            vol=first(vol30_region)) %>%
+  ggplot(aes(timeCalculated, dens_tot/vol, colour=meshRes, linetype=liceSpeedF)) + 
+  geom_line() + 
+  scale_linetype_manual("Lice\nspeed", values=1:3) +
+  scale_colour_manual("Mesh", values=col_meshRes) +
+  guides(colour=guide_legend(ncol=2)) +
+  facet_wrap(~lochRegionF, nrow=2) +
+  labs(x="Date", y=expression("Copepodid density in top 30m ("~'m'^-3~")")) +
+  theme(legend.position="bottom",
+        axis.text.x=element_text(angle=310, hjust=0, vjust=0.5))
+ggsave(glue("figs/init{initDensity}/copepodTimeDensity_m3_lochRegion.png"), height=6, width=8)
+loc.df %>% 
+  filter(depth < 30) %>%
+  filter(status==2) %>%
+  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegionF, timeCalculated) %>% 
+  summarise(dens_tot=sum(density),
+            vol=first(vol30_region)) %>%
+  ggplot(aes(timeCalculated, log10(dens_tot/vol), colour=meshRes, linetype=liceSpeedF)) + 
+  geom_line() + 
+  scale_linetype_manual("Lice\nspeed", values=1:3) +
+  scale_colour_manual("Mesh", values=col_meshRes) +
+  guides(colour=guide_legend(ncol=2)) +
+  facet_wrap(~lochRegionF, nrow=2) +
+  labs(x="Date", y=expression("Copepodid density in top 30m ("~'log10 m'^-3~")")) +
+  theme(legend.position="bottom",
+        axis.text.x=element_text(angle=310, hjust=0, vjust=0.5))
+ggsave(glue("figs/init{initDensity}/copepodTimeDensity_log_m3_lochRegion.png"), height=6, width=8)
 
 
 loc.df %>% 
@@ -317,9 +393,7 @@ loc.df %>%
   group_by(mesh, timeRes, meshRes, liceSpeedF, mainLoch, timeCalculated) %>% 
   summarise(nPart=n()) %>%
   group_by(mesh, timeRes, meshRes, liceSpeedF) %>%
-  mutate(propPart=nPart/sum(nPart),
-         mainLoch=if_else(is.na(mainLoch), 2L, mainLoch),
-         mainLoch=factor(mainLoch, levels=0:2, labels=c("Side lochs", "Main loch", "Beyond Linnhe"))) %>%
+  mutate(propPart=nPart/sum(nPart)) %>%
   ggplot(aes(timeCalculated, nPart, colour=meshRes, linetype=liceSpeedF)) + 
   geom_line() + 
   scale_linetype_manual("Lice\nspeed", values=1:3) +
@@ -329,37 +403,31 @@ loc.df %>%
   labs(x="Date", y="Proportion of copepodid particles") +
   theme(legend.position="bottom",
         axis.text.x=element_text(angle=310, hjust=0, vjust=0.5))
-ggsave(glue("figs/init{initDensity}/copepodTimePropPartHr_mainLoch.png"), height=4, width=8)
+ggsave(glue("figs/init{initDensity}/copepodTimePropPart_mainLoch.png"), height=4, width=8)
 
 loc.df %>% 
   filter(status==2) %>%
-  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegion, timeCalculated) %>% 
+  group_by(mesh, timeRes, meshRes, liceSpeedF, lochRegionF, timeCalculated) %>% 
   summarise(nPart=n()) %>%
   group_by(mesh, timeRes, meshRes, liceSpeedF) %>%
-  mutate(propPart=nPart/sum(nPart),lochRegion=if_else(is.na(lochRegion), 8, lochRegion),
-         lochRegion=factor(lochRegion, levels=1:8, 
-                           labels=c(unique(mesh.lochRegions$lochRegionF), "Beyond Linnhe")),
-         lochRegion=factor(lochRegion, levels=levels(lochRegion)[c(6,1:3,4,5,7,8)])) %>%
+  mutate(propPart=nPart/sum(nPart)) %>%
   ggplot(aes(timeCalculated, nPart, colour=meshRes, linetype=liceSpeedF)) + 
   geom_line() + 
   scale_linetype_manual("Lice\nspeed", values=1:3) +
   scale_colour_manual("Mesh", values=col_meshRes) +
   guides(colour=guide_legend(ncol=2)) +
-  facet_wrap(~lochRegion, nrow=2) +
+  facet_wrap(~lochRegionF, nrow=2) +
   labs(x="Date", y="Copepodid density") +
   theme(legend.position="bottom",
         axis.text.x=element_text(angle=310, hjust=0, vjust=0.5))
-ggsave(glue("figs/init{initDensity}/copepodTimePropPartHr_lochRegion.png"), height=6, width=8)
+ggsave(glue("figs/init{initDensity}/copepodTimePropPart_lochRegion.png"), height=6, width=8)
 
 
 loc.df %>% 
   filter(status==2) %>%
   filter(density > 0) %>%
   filter(timeCalculated >= "2021-11-04 00:00:00") %>%
-  mutate(density=brms::logit_scaled(density),
-         mainLoch=if_else(is.na(mainLoch), 2L, mainLoch),
-         mainLoch=factor(mainLoch, levels=c(2,0,1), 
-                         labels=c("Beyond Linnhe", "Side lochs", "Main loch"))) %>%
+  mutate(density=brms::logit_scaled(density)) %>%
   group_by(meshRes, liceSpeedF, mainLoch, timeCalculated) %>%
   summarise(dens_mn=mean(density),
             dens_lo=quantile(density, 0.25),
@@ -380,12 +448,8 @@ loc.df %>%
   filter(status==2) %>%
   filter(density > 0) %>%
   filter(timeCalculated >= "2021-11-04 00:00:00") %>%
-  mutate(density=brms::logit_scaled(density),
-         lochRegion=if_else(is.na(lochRegion), 8, lochRegion),
-         lochRegion=factor(lochRegion, levels=1:8, 
-                           labels=c(unique(mesh.lochRegions$lochRegionF), "Beyond Linnhe")),
-         lochRegion=factor(lochRegion, levels=levels(lochRegion)[c(6,1:3,4,5,7,8)])) %>%
-  group_by(meshRes, liceSpeedF, lochRegion, timeCalculated) %>%
+  mutate(density=brms::logit_scaled(density)) %>%
+  group_by(meshRes, liceSpeedF, lochRegionF, timeCalculated) %>%
   summarise(dens_mn=mean(density),
             dens_lo=quantile(density, 0.25),
             dens_hi=quantile(density, 0.75)) %>%
@@ -395,7 +459,7 @@ loc.df %>%
   # geom_errorbar(position=position_dodge(width=0.4), width=0.2) +
   scale_fill_manual("Mesh", values=col_meshRes) +
   scale_colour_manual("Mesh", values=col_meshRes) +
-  facet_grid(liceSpeedF~lochRegion) +
+  facet_grid(liceSpeedF~lochRegionF) +
   theme(legend.position="bottom",
         axis.text.x=element_text(angle=310, hjust=0, vjust=0.5)) +
   labs(x="", y="logit(Per-particle copepodid density)")
@@ -408,19 +472,19 @@ ggsave(glue("figs/init{initDensity}/copepodTimePart_lochRegion.png"), height=5, 
 # tidal pulses ------------------------------------------------------------
 
 pulse.sf <- st_read(glue("out/00_processed/locations_sitePulse_init{initDensity}.gpkg")) %>%
-  mutate(downloch_m=cos(-2.225858-bearing_m), # bearing of main body (loch region 7)
-         downloch_p=cos(-2.225858-bearing_p),
+  mutate(uploch_m=cos(filter(mesh.lochRegions, lochRegion==7)$bearing[1]-bearing_m), # bearing of main body (loch region 7)
+         uploch_p=cos(filter(mesh.lochRegions, lochRegion==7)$bearing[1]-bearing_p),
          meshRes=paste(mesh, timeRes, sep=", "),
          meshRes=factor(meshRes, levels=names(col_meshRes)),
          liceSpeedF=factor(liceSpeedF, levels=levels(sim_i$liceSpeedF)))
 
 pulse.dir <- pulse.sf %>%
   st_drop_geometry() %>%
-  select(ID, sim, mesh, timeRes, meshRes, liceSpeedF, timeCalculated, downloch_m, downloch_p) %>%
-  pivot_longer(starts_with("downloch"), names_to="Time", values_to="downloch") %>%
-  mutate(Time=if_else(Time=="downloch_m", "before", "after"),
+  select(ID, sim, mesh, timeRes, meshRes, liceSpeedF, timeCalculated, uploch_m, uploch_p) %>%
+  pivot_longer(starts_with("uploch"), names_to="Time", values_to="uploch") %>%
+  mutate(Time=if_else(Time=="uploch_m", "before", "after"),
          Time=factor(Time, levels=c("before", "after")),
-         particleDirection=if_else(downloch>0, "downloch", "uploch"))
+         particleDirection=if_else(uploch>0, "uploch", "downloch"))
 pulse.dZ <- pulse.sf %>%
   st_drop_geometry() %>%
   select(ID, sim, mesh, timeRes, meshRes, liceSpeedF, timeCalculated, z, dmz, dpz) %>%
@@ -468,22 +532,21 @@ pulse.Dens <- pulse.sf %>%
 
 
 pulse.dir %>%
-  filter(!is.na(downloch))%>%
+  filter(!is.na(uploch))%>%
   ggplot(aes(Time, fill=particleDirection)) +
   geom_bar(position="fill", colour="grey30") +
   facet_grid(liceSpeedF~meshRes) +
   labs(title="Direction of movement pre- and post-tidal pulse",
        x="Time re: tidal pulse", y="Proportion of particles")
-ggsave(glue("figs/init{initDensity}/pulse_downlochBar.png"), width=8, height=6, dpi=300)
+ggsave(glue("figs/init{initDensity}/pulse_uplochBar.png"), width=8, height=6, dpi=300)
 
 glm.dat <- pulse.dir %>%
-  mutate(particleDirection=if_else(downloch>0, 1, 0),
+  mutate(particleDirection=if_else(uploch>0, 1, 0),
          Time=factor(Time)) %>%
   filter(!is.na(particleDirection)) %>%
   group_by(mesh, timeRes, liceSpeedF, Time, timeCalculated) %>%
-  summarise(down=sum(particleDirection),
-            Npart=n()) %>%
-  mutate(up=Npart-down)
+  summarise(up=sum(particleDirection),
+            Npart=n()) 
 library(brms)
 out <- brm(up | trials(Npart) ~ mesh * timeRes * liceSpeedF * Time,
            data=glm.dat, family=binomial(), cores=4)
@@ -554,7 +617,7 @@ ggsave(glue("figs/init{initDensity}/pulse_uplochLines.png"), width=6, height=5, 
 
 
 # glm_zCat.dat <- pulse.sum %>%
-#   mutate(particleDirection=if_else(downloch>0, 1, 0),
+#   mutate(particleDirection=if_else(uploch>0, 1, 0),
 #          Time=factor(Time),
 #          dZ=pmax(pmin(-dZ, 20), -20),
 #          dZ_cat=factor(round(dZ, -1))) %>%
@@ -714,6 +777,32 @@ pulse.sum %>%
   labs(x="Particle direction", y="\u0394ln(XY)") +
   theme(legend.position="bottom")
 ggsave(glue("figs/init{initDensity}/pulse_lndXY_by_dZcat_hdi.png"), width=8.5, height=7, dpi=300)
+pulse.sum %>%
+  mutate(dZ=-dZ,
+         dZ_cat=case_when(dZ < -20 ~ "downward > 20m",
+                          between(dZ, -20, 0) ~ "downward 0-20m",
+                          dZ > 0 ~ "upward"),
+         dZ_cat=factor(dZ_cat, levels=rev(sort(unique(dZ_cat)))),
+         dXY=log1p(dXY)) %>%
+  group_by(meshRes, Time, particleDirection, dZ_cat) %>%
+  summarise(dXY_mn=median(dXY, na.rm=T),
+            dXY_lo1=HDInterval::hdi(dXY)[1],
+            dXY_hi1=HDInterval::hdi(dXY)[2],
+            dXY_lo2=HDInterval::hdi(dXY, 0.8)[1],
+            dXY_hi2=HDInterval::hdi(dXY, 0.8)[2],
+            dXY_lo3=HDInterval::hdi(dXY, 0.5)[1],
+            dXY_hi3=HDInterval::hdi(dXY, 0.5)[2]) %>%
+  ggplot(aes(particleDirection, dXY_mn, colour=meshRes, shape=Time)) +
+  geom_point(position=position_dodge(width=0.5), size=2) +
+  geom_linerange(aes(ymin=dXY_lo1, ymax=dXY_hi1), position=position_dodge(width=0.5), size=0.25) +
+  geom_linerange(aes(ymin=dXY_lo2, ymax=dXY_hi2), position=position_dodge(width=0.5), size=0.5) +
+  geom_linerange(aes(ymin=dXY_lo3, ymax=dXY_hi3), position=position_dodge(width=0.5), size=1) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_shape_manual(values=c(1, 19)) +
+  facet_grid(dZ_cat~.) +
+  labs(x="Particle direction", y="\u0394ln(XY)") +
+  theme(legend.position="bottom")
+ggsave(glue("figs/init{initDensity}/pulse_lndXY_by_dZcat_NoSpeed_hdi.png"), width=5, height=7, dpi=300)
 
 pulse.sum %>%
   mutate(dZ=-dZ,
@@ -749,6 +838,39 @@ pulse.sum %>%
   labs(x="Hour re: tidal pulse", y="\u0394ln(XY)") +
   theme(panel.spacing.x=unit(c(-0.1, 0.3, -0.1, 0.3, -0.1), "cm"))
 ggsave(glue("figs/init{initDensity}/pulse_lndXY_by_dZcat_bumpPlot.png"), width=8, height=6, dpi=300)
+pulse.sum %>%
+  mutate(dZ=-dZ,
+         dZ_cat=case_when(dZ < -20 ~ "downward > 20m",
+                          between(dZ, -20, 0) ~ "downward 0-20m",
+                          dZ > 0 ~ "upward"),
+         dZ_cat=factor(dZ_cat, levels=rev(sort(unique(dZ_cat)))),
+         dXY=log1p(dXY)) %>%
+  group_by(meshRes, Time, particleDirection, dZ_cat) %>%
+  summarise(dXY_mn=median(dXY, na.rm=T),
+            dXY_lo1=HDInterval::hdi(dXY)[1],
+            dXY_hi1=HDInterval::hdi(dXY)[2],
+            dXY_lo2=HDInterval::hdi(dXY, 0.8)[1],
+            dXY_hi2=HDInterval::hdi(dXY, 0.8)[2],
+            dXY_lo3=HDInterval::hdi(dXY, 0.5)[1],
+            dXY_hi3=HDInterval::hdi(dXY, 0.5)[2]) %>%
+  ggplot(aes(Time, dXY_mn, colour=meshRes, fill=meshRes,
+             shape=particleDirection,
+             group=paste(meshRes, particleDirection))) +
+  geom_point(position=position_dodge(width=0.5), size=2) +
+  geom_errorbar(aes(ymin=dXY_lo2, ymax=dXY_hi2), size=0.25, width=0.2,
+                position=position_dodge(width=0.5), alpha=0.4) +
+  geom_errorbar(aes(ymin=dXY_lo3, ymax=dXY_hi3), size=1, width=0,
+                position=position_dodge(width=0.5), alpha=0.4) +
+  geom_line(position=position_dodge(width=0.5), size=1) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
+  scale_linetype_manual(values=c(4,1)) +
+  scale_shape_manual(values=c(1, 19)) +
+  facet_grid(dZ_cat~particleDirection) +
+  guides(shape=guide_legend(reverse=T),
+         linetype=guide_legend(reverse=T)) +
+  labs(x="Hour re: tidal pulse", y="\u0394ln(XY)")
+ggsave(glue("figs/init{initDensity}/pulse_lndXY_by_dZcat_NoSpeed_bumpPlot.png"), width=5, height=6, dpi=300)
 
 pulse.sum %>%
   mutate(mnZ=if_else(Time=="before", z0 - (dZ/2), z0 + (dZ/2)),
@@ -776,6 +898,32 @@ pulse.sum %>%
   labs(x="Particle direction", y="\u0394ln(XY)") +
   theme(legend.position="bottom")
 ggsave(glue("figs/init{initDensity}/pulse_lndXY_by_Zcat_hdi.png"), width=8.5, height=7, dpi=300)
+pulse.sum %>%
+  mutate(mnZ=if_else(Time=="before", z0 - (dZ/2), z0 + (dZ/2)),
+         mnZ_cat=case_when(mnZ > 20 ~ "20m + ",
+                           between(mnZ, 10, 20) ~ "10-20m",
+                           mnZ < 10 ~ "0-10m"),
+         mnZ_cat=factor(mnZ_cat, levels=(sort(unique(mnZ_cat)))),
+         dXY=log1p(dXY)) %>%
+  group_by(meshRes, Time, particleDirection, mnZ_cat) %>%
+  summarise(dXY_mn=median(dXY, na.rm=T),
+            dXY_lo1=HDInterval::hdi(dXY)[1],
+            dXY_hi1=HDInterval::hdi(dXY)[2],
+            dXY_lo2=HDInterval::hdi(dXY, 0.8)[1],
+            dXY_hi2=HDInterval::hdi(dXY, 0.8)[2],
+            dXY_lo3=HDInterval::hdi(dXY, 0.5)[1],
+            dXY_hi3=HDInterval::hdi(dXY, 0.5)[2]) %>%
+  ggplot(aes(particleDirection, dXY_mn, colour=meshRes, shape=Time)) +
+  geom_point(position=position_dodge(width=0.5), size=2) +
+  geom_linerange(aes(ymin=dXY_lo1, ymax=dXY_hi1), position=position_dodge(width=0.5), size=0.25) +
+  geom_linerange(aes(ymin=dXY_lo2, ymax=dXY_hi2), position=position_dodge(width=0.5), size=0.5) +
+  geom_linerange(aes(ymin=dXY_lo3, ymax=dXY_hi3), position=position_dodge(width=0.5), size=1) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_shape_manual(values=c(1, 19)) +
+  facet_grid(mnZ_cat~.) +
+  labs(x="Particle direction", y="\u0394ln(XY)") +
+  theme(legend.position="bottom")
+ggsave(glue("figs/init{initDensity}/pulse_lndXY_by_Zcat_NoSpeed_hdi.png"), width=5, height=7, dpi=300)
 
 pulse.sum %>%
   mutate(mnZ=if_else(Time=="before", z0 - (dZ/2), z0 + (dZ/2)),
@@ -810,6 +958,38 @@ pulse.sum %>%
   labs(x="Hour re: tidal pulse", y="\u0394ln(XY)") +
   theme(panel.spacing.x=unit(c(-0.1, 0.3, -0.1, 0.3, -0.1), "cm"))
 ggsave(glue("figs/init{initDensity}/pulse_lndXY_by_Zcat_bumpPlot.png"), width=8, height=6, dpi=300)
+pulse.sum %>%
+  mutate(mnZ=if_else(Time=="before", z0 - (dZ/2), z0 + (dZ/2)),
+         mnZ_cat=case_when(mnZ > 20 ~ "20m + ",
+                           between(mnZ, 10, 20) ~ "10-20m",
+                           mnZ < 10 ~ "0-10m"),
+         mnZ_cat=factor(mnZ_cat, levels=(sort(unique(mnZ_cat)))),
+         dXY=log1p(dXY)) %>%
+  group_by(meshRes, Time, particleDirection, mnZ_cat) %>%
+  summarise(dXY_mn=median(dXY, na.rm=T),
+            dXY_lo1=HDInterval::hdi(dXY)[1],
+            dXY_hi1=HDInterval::hdi(dXY)[2],
+            dXY_lo2=HDInterval::hdi(dXY, 0.8)[1],
+            dXY_hi2=HDInterval::hdi(dXY, 0.8)[2],
+            dXY_lo3=HDInterval::hdi(dXY, 0.5)[1],
+            dXY_hi3=HDInterval::hdi(dXY, 0.5)[2]) %>%
+  ggplot(aes(Time, dXY_mn, colour=meshRes, fill=meshRes,
+             shape=particleDirection,
+             group=paste(meshRes, particleDirection))) +
+  geom_point(position=position_dodge(width=0.5), size=2) +
+  geom_errorbar(aes(ymin=dXY_lo2, ymax=dXY_hi2), size=0.25, width=0.2,
+                position=position_dodge(width=0.5), alpha=0.4) +
+  geom_errorbar(aes(ymin=dXY_lo3, ymax=dXY_hi3), size=1, width=0,
+                position=position_dodge(width=0.5), alpha=0.4) +
+  geom_line(position=position_dodge(width=0.5), size=1) +
+  scale_colour_manual(values=col_meshRes) +
+  scale_fill_manual(values=col_meshRes) +
+  scale_shape_manual(values=c(1, 19)) +
+  facet_grid(mnZ_cat~particleDirection) +
+  guides(shape=guide_legend(reverse=T),
+         linetype=guide_legend(reverse=T)) +
+  labs(x="Hour re: tidal pulse", y="\u0394ln(XY)") 
+ggsave(glue("figs/init{initDensity}/pulse_lndXY_by_Zcat_NoSpeed_bumpPlot.png"), width=5, height=6, dpi=300)
 
 pulse.sum %>%
   mutate(mnZ=if_else(Time=="before", z0 - (dZ/2), z0 + (dZ/2)),
@@ -899,7 +1079,7 @@ pulse.sf %>% st_drop_geometry() %>%
                            z_mid < 10 ~ "0-10m"),
          mnZ_cat=factor(mnZ_cat, levels=(sort(unique(mnZ_cat))))) %>% 
   ggplot(aes(bearing_m, y=..ndensity.., fill=mnZ_cat)) + 
-  geom_vline(xintercept=-2.225858) +
+  geom_vline(xintercept=filter(mesh.lochRegions, lochRegion==7)$bearing[1]-pi) +
   geom_histogram(bins=24, colour="grey30") +
   annotate("text", x=pi*3/4, y=2.8, label="pre", size=3) +
   facet_grid(liceSpeedF~meshRes) + 
@@ -919,7 +1099,7 @@ pulse.sf %>% st_drop_geometry() %>%
                            z_mid < 10 ~ "0-10m"),
          mnZ_cat=factor(mnZ_cat, levels=(sort(unique(mnZ_cat))))) %>% 
   ggplot(aes(bearing_p, y=..ndensity.., fill=mnZ_cat)) + 
-  geom_vline(xintercept=-2.225858) +
+  geom_vline(xintercept=filter(mesh.lochRegions, lochRegion==7)$bearing[1]-pi) +
   geom_histogram(bins=24, colour="grey30") + 
   annotate("text", x=pi*3/4, y=2.8, label="post", size=3) +
   facet_grid(liceSpeedF~meshRes) + 
@@ -949,16 +1129,16 @@ ggplot(mesh.fp) + geom_sf() +
         axis.line=element_blank())
 ggsave("figs/mesh/mesh_fp.png", width=3, height=3.5, dpi=300)
 
-# ggplot(mesh.sf, aes(fill=bearing)) + 
-#   geom_sf(colour=NA) + 
-#   fill_NSEW + 
-#   facet_grid(.~mesh)
-# ggsave(glue("figs/mesh/mesh_bearing.png", width=6, height=4, dpi=300)
+ggplot(mesh.lochRegions, aes(fill=bearing)) +
+  geom_sf(colour=NA) +
+  fill_NSEW +
+  facet_grid(.~mesh)
+ggsave(glue("figs/mesh/mesh_bearing.png"), width=6, height=4, dpi=300)
 # ggplot(mesh.sf, aes(fill=depth)) + 
 #   geom_sf(colour=NA) + 
 #   scale_fill_viridis_c() +
 #   facet_grid(.~mesh)
-# ggsave(glue("figs/mesh/mesh_depth.png", width=6, height=4, dpi=300)
+# ggsave(glue("figs/mesh/mesh_depth.png"), width=6, height=4, dpi=300)
 
 
 
@@ -966,7 +1146,7 @@ ggsave("figs/mesh/mesh_fp.png", width=3, height=3.5, dpi=300)
 
 # tendency to be deeper in WeStCOMS, but need to filter by bathymetric depth
 # since linnhe includes shallower areas
-p <- loc.df %>% filter(age>=12, status != 66) %>%
+p <- loc.df %>% filter(age>=12, meshParticle!="Beyond Linnhe") %>%
   ggplot(aes(depth, colour=meshRes)) +
   geom_density() +
   scale_colour_manual(values=col_meshRes) +
@@ -974,7 +1154,7 @@ p <- loc.df %>% filter(age>=12, status != 66) %>%
   facet_grid(liceSpeedF~.)
 ggsave(glue("figs/init{initDensity}/vertDist_site.png"), p, width=5, height=6, dpi=300)
 
-# p <- loc.df %>% filter(age>=12 & status != 66) %>%
+# p <- loc.df %>% filter(age>=12 & meshParticle!="Beyond Linnhe") %>%
 #   ggplot(aes(depth, colour=liceSpeedF)) +
 #   geom_density() +
 #   scale_colour_viridis_d() +
@@ -982,7 +1162,7 @@ ggsave(glue("figs/init{initDensity}/vertDist_site.png"), p, width=5, height=6, d
 #   facet_grid(meshRes~.)
 
 # By hour
-p <- loc.df %>% filter(age>=12 & status != 66) %>%
+p <- loc.df %>% filter(age>=12 & meshParticle!="Beyond Linnhe") %>%
   ggplot(aes(depth, colour=hour, group=hour)) +
   geom_density() +
   xlim(0, 25) +
@@ -990,7 +1170,7 @@ p <- loc.df %>% filter(age>=12 & status != 66) %>%
   facet_grid(meshRes~liceSpeedF)
 ggsave(glue("figs/init{initDensity}/vertDist_by_hour_site.png"), p, width=8, height=6, dpi=300)
 
-p <- loc.df %>% filter(age>=12 & status != 66) %>%
+p <- loc.df %>% filter(age>=12 & meshParticle!="Beyond Linnhe") %>%
   ggplot(aes(depth, colour=meshRes)) +
   geom_density() +
   xlim(0, 25) +
@@ -998,7 +1178,7 @@ p <- loc.df %>% filter(age>=12 & status != 66) %>%
   facet_grid(liceSpeedF~hour)
 ggsave(glue("figs/init{initDensity}/vertDist_by_hour2_site.png"), p, width=17, height=5, dpi=300)
 
-p <- loc.df %>% filter(age>=12 & status != 66) %>%
+p <- loc.df %>% filter(age>=12 & meshParticle!="Beyond Linnhe") %>%
   ggplot(aes(depth, linetype=meshRes, colour=liceSpeedF, group=sim)) +
   geom_density() +
   xlim(0, 25) +
@@ -1028,16 +1208,16 @@ ggsave(glue("figs/init{initDensity}/vertDist_by_hour3_site.png"), p, width=12, h
 # mesh exits --------------------------------------------------------------
 
 # lice more likely to exit loch in WeStCOMS, at faster sink/swim speeds
-# p <- loc.df %>% 
-#   group_by(meshRes, liceSpeedF, ID) %>% 
-#   summarise(exited=any(meshParticle==1)) %>% 
-#   group_by(meshRes, liceSpeedF) %>%
-#   summarise(propExit=mean(exited)) %>% 
-#   ggplot(aes(liceSpeedF, propExit, colour=meshRes, group=meshRes)) + 
-#   geom_point() + geom_path() +
-#   scale_colour_manual(values=col_meshRes) +
-#   ylim(0, NA) + labs(y="Proportion leaving Loch Linnhe")
-# ggsave(glue("figs/init{initDensity}/exits_site.png"), p, width=5, height=3, dpi=300)
+p <- loc.df %>%
+  group_by(meshRes, liceSpeedF, ID) %>%
+  summarise(exited=any(meshParticle=="Beyond Linnhe")) %>%
+  group_by(meshRes, liceSpeedF) %>%
+  summarise(propExit=mean(exited)) %>%
+  ggplot(aes(liceSpeedF, propExit, colour=meshRes, group=meshRes)) +
+  geom_point() + geom_path() +
+  scale_colour_manual(values=col_meshRes) +
+  ylim(0, NA) + labs(y="Proportion leaving Loch Linnhe")
+ggsave(glue("figs/init{initDensity}/exits_site.png"), p, width=5, height=3, dpi=300)
 
 # confirming exits occur at open boundaries only
 # p <- loc.df %>% 
@@ -1069,7 +1249,7 @@ ggsave(glue("figs/init{initDensity}/vertDist_by_hour3_site.png"), p, width=12, h
 # total distance ----------------------------------------------------------
 
 p <- loc.df %>%
-  filter(age>=12 & status != 66) %>%
+  filter(status==2 & meshParticle!="Beyond Linnhe") %>%
   group_by(ID, sim, meshRes, liceSpeedF) %>%
   slice_tail(n=1) %>%
   ggplot(aes(xyTot/age, colour=meshRes, linetype=liceSpeedF, group=sim)) +
@@ -1078,7 +1258,7 @@ p <- loc.df %>%
   scale_x_log10("Mean xy hourly displacement (m/h)")
 ggsave(glue("figs/init{initDensity}/xy_mean_log_site.png"), p, width=6, height=4, dpi=300)
 p <- loc.df %>%
-  filter(age>=12 & status!=66) %>%
+  filter(status==2 & status!=66) %>%
   group_by(ID, sim, meshRes, liceSpeedF) %>%
   slice_tail(n=1) %>%
   ggplot(aes(xyTot/age, colour=meshRes, linetype=liceSpeedF, group=sim)) +
@@ -1091,7 +1271,7 @@ p <- loc.df %>%
   group_by(ID, sim, meshRes, liceSpeedF) %>%
   arrange(age) %>%
   mutate(dZ=depth-lag(depth)) %>%
-  filter(age>=12 & status != 66) %>%
+  filter(status==2 & meshParticle!="Beyond Linnhe") %>%
   ggplot(aes(abs(dZ), colour=meshRes, linetype=liceSpeedF, group=sim)) +
   geom_density() +
   scale_colour_manual(values=col_meshRes) +
@@ -1101,7 +1281,7 @@ p <- loc.df %>%
   group_by(ID, sim, meshRes, liceSpeedF) %>%
   arrange(age) %>%
   mutate(dZ=depth-lag(depth)) %>%
-  filter(age>=12 & status != 66) %>%
+  filter(status==2 & meshParticle!="Beyond Linnhe") %>%
   ggplot(aes(abs(dZ), colour=meshRes, linetype=liceSpeedF, group=sim)) +
   geom_density() +
   scale_colour_manual(values=col_meshRes) +
@@ -1112,20 +1292,20 @@ ggsave(glue("figs/init{initDensity}/z_mean_site.png"), p, width=6, height=4, dpi
 
 # element activity --------------------------------------------------------
 
-# p <- ggplot(elemAct.sf, aes(fill=sink/total)) + geom_sf(colour=NA) +
-#   scale_fill_viridis_c(limits=c(0,1)) +
-#   facet_grid(meshRes~liceSpeed)
-# ggsave(glue("figs/init{initDensity}/prSink_mesh_by_speed_site.png"), p, width=8, height=8, dpi=300)
-# 
-# p <- ggplot(elemAct.sf, aes(fill=swim/total)) + geom_sf(colour=NA) +
-#   scale_fill_viridis_c(limits=c(0,1)) +
-#   facet_grid(meshRes~liceSpeed)
-# ggsave(glue("figs/init{initDensity}/prSwim_mesh_by_speed_site.png"), p, width=8, height=8, dpi=300)
-# 
-# p <- ggplot(elemAct.sf, aes(fill=float/total)) + geom_sf(colour=NA) +
-#   scale_fill_viridis_c(limits=c(0,1)) +
-#   facet_grid(meshRes~liceSpeed)
-# ggsave(glue("figs/init{initDensity}/prFloat_mesh_by_speed_site.png"), p, width=8, height=8, dpi=300)
+p <- ggplot(elemAct.sf, aes(fill=sink/total)) + geom_sf(colour=NA) +
+  scale_fill_viridis_c(limits=c(0,1)) +
+  facet_grid(meshRes~liceSpeed)
+ggsave(glue("figs/init{initDensity}/prSink_mesh_by_speed_site.png"), p, width=6, height=8, dpi=300)
+
+p <- ggplot(elemAct.sf, aes(fill=swim/total)) + geom_sf(colour=NA) +
+  scale_fill_viridis_c(limits=c(0,1)) +
+  facet_grid(meshRes~liceSpeed)
+ggsave(glue("figs/init{initDensity}/prSwim_mesh_by_speed_site.png"), p, width=6, height=8, dpi=300)
+
+p <- ggplot(elemAct.sf, aes(fill=float/total)) + geom_sf(colour=NA) +
+  scale_fill_viridis_c(limits=c(0,1)) +
+  facet_grid(meshRes~liceSpeed)
+ggsave(glue("figs/init{initDensity}/prFloat_mesh_by_speed_site.png"), p, width=6, height=8, dpi=300)
 
 
 
@@ -1138,7 +1318,7 @@ ggsave(glue("figs/init{initDensity}/z_mean_site.png"), p, width=6, height=4, dpi
 # bbox <- st_bbox(mesh.fp)
 # for(i in 1:nrow(sim_i)) {
 #   p <- loc.df %>%
-#     filter(age>=12 & status != 66) %>%
+#     filter(age>=12 & meshParticle!="Beyond Linnhe") %>%
 #     filter(sim==i) %>%
 #     filter(between(x, bbox$xmin, bbox$xmax), between(y, bbox$ymin, bbox$ymax)) %>%
 #     ggplot(aes(x,y, alpha=density, colour=depth)) +
@@ -1153,7 +1333,7 @@ bbox <- st_bbox(mesh.fp)
 part.samp <- sample(unique(loc.df$ID), 5000)
 for(i in 1:nrow(sim_i)) {
   p <- loc.df %>%
-    filter(status != 66) %>%
+    filter(meshParticle!="Beyond Linnhe") %>%
     filter(sim==i) %>%
     filter(between(x, bbox$xmin, bbox$xmax), between(y, bbox$ymin, bbox$ymax)) %>%
     arrange(sim, ID, age) %>%
@@ -1174,7 +1354,7 @@ for(i in 1:nrow(sim_i)) {
 
 # part.samp <- sample(unique(loc.df$ID), 1000)
 # loc.df2 <- loc.df %>% filter(ID %in% part.samp) %>%
-#   filter(status != 66)
+#   filter(meshParticle!="Beyond Linnhe")
 # 
 # loc.df2 %>%
 #   filter(liceSpeedF=="Medium") %>%
@@ -1199,47 +1379,219 @@ for(i in 1:nrow(sim_i)) {
 
 # density maps ------------------------------------------------------------
 
-# dens.sf <- loc.df %>% 
-#   filter(status==2) %>%
-#   filter(depth < 30) %>%
-#   select(sim, meshRes, liceSpeedF, ID, x, y, density) %>%
-#   st_as_sf(coords=c("x", "y"), crs=27700) %>%
-#   st_join(mesh.sf %>% filter(mesh=="WeStCOMS2") %>% select(i)) %>%
-#   st_drop_geometry() %>%
-#   group_by(sim, meshRes, liceSpeedF, i) %>%
-#   summarise(part_density=sum(density), N=n()) %>%
-#   ungroup %>%
-#   inner_join(mesh.sf %>% filter(mesh=="WeStCOMS2"), .) %>%
-#   mutate(depth_30=pmin(depth, 30),
-#          dens_m3=part_density/(area*depth_30),
-#          ln_densm3=log(dens_m3),
-#          lnDens_m3=log(part_density)/(area*depth_30))
-# st_write(dens.sf, "temp/density_30m_initScaled.gpkg", append=F)
-# 
-# p <- ggplot(dens.sf) + 
-#   geom_sf(data=mesh.fp) +
-#   geom_sf(aes(fill=ln_densm3), colour=NA) + 
-#   scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
-#   facet_grid(liceSpeedF~meshRes) +
-#   theme(axis.text=element_blank())
-# ggsave(glue("figs/init{initDensity}/density_map_site.png"), p, width=9, height=8, dpi=300)
-# 
-# p <- ggplot(dens.sf) + 
-#   geom_sf(data=mesh.fp) +
-#   geom_sf(aes(fill=dens_m3), colour=NA) + 
-#   scale_fill_viridis_c(expression("lice/m"^3), option="magma") +
-#   facet_grid(liceSpeedF~meshRes) +
-#   theme(axis.text=element_blank())
-# ggsave(glue("figs/init{initDensity}/density2_map_site.png"), p, width=9, height=8, dpi=300)
-# 
-# p <- ggplot(dens.sf) + 
-#   geom_sf(data=mesh.fp) +
-#   geom_sf(aes(fill=log(N/(area*depth_30))), colour=NA) + 
-#   scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
-#   facet_grid(liceSpeedF~meshRes) +
-#   theme(axis.text=element_blank())
-# ggsave(glue("figs/init{initDensity}/density3_map_site.png"), p, width=9, height=8, dpi=300)
-# 
+dens.sf <- loc.df %>%
+  filter(status==2) %>%
+  filter(depth < 30) %>%
+  select(sim, meshRes, liceSpeedF, ID, x, y, density) %>%
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(mesh.sf %>% filter(meshParticle=="Beyond Linnhe") %>% select(-meshParticle)) %>%
+  st_drop_geometry() %>%
+  group_by(sim, meshRes, liceSpeedF, i) %>%
+  summarise(part_density=sum(density), N=n(), vol_elem=first(vol_elem), vol30_elem=first(vol30_elem)) %>%
+  ungroup %>%
+  mutate(dens_m3=part_density/vol30_elem,
+         ln_densm3=log(dens_m3),
+         lnDens_m3=log(part_density)/vol30_elem) %>%
+  inner_join(mesh.sf %>% filter(meshParticle=="Beyond Linnhe") %>% select(i, geom), .)
+st_write(dens.sf, glue("temp/density_30m_init{initDensity}.gpkg"), append=F)
+
+p <- ggplot(dens.sf) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=ln_densm3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density_map_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(mesh.fp)) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=ln_densm3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density_map_linnhe_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(data=mesh.fp %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(aes(fill=ln_densm3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density_map_etive_site.png"), p, width=9, height=5, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(corran)) +
+  geom_sf(data=mesh.fp %>% st_crop(corran)) +
+  geom_sf(aes(fill=ln_densm3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density_map_corran_site.png"), p, width=9, height=6, dpi=300)
+
+
+p <- ggplot(dens.sf) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=lnDens_m3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice)/m"^3), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density2_map_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(mesh.fp)) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=lnDens_m3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice)/m"^3), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density2_map_linnhe_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(data=mesh.fp %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(aes(fill=lnDens_m3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice)/m"^3), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density2_map_etive_site.png"), p, width=9, height=5, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(corran)) +
+  geom_sf(data=mesh.fp %>% st_crop(corran)) +
+  geom_sf(aes(fill=lnDens_m3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice)/m"^3), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density2_map_corran_site.png"), p, width=9, height=6, dpi=300)
+
+
+p <- ggplot(dens.sf) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=log(N/vol30_elem)), colour=NA) +
+  scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density3_map_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(mesh.fp)) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=log(N/vol30_elem)), colour=NA) +
+  scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density3_map_linnhe_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(data=mesh.fp %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(aes(fill=log(N/vol30_elem)), colour=NA) +
+  scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density3_map_etive_site.png"), p, width=9, height=5, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(corran)) +
+  geom_sf(data=mesh.fp %>% st_crop(corran)) +
+  geom_sf(aes(fill=log(N/vol30_elem)), colour=NA) +
+  scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density3_map_corran_site.png"), p, width=9, height=6, dpi=300)
+
+rm(dens.sf); gc()
+
+
+dens.sf <- loc.df %>%
+  filter(status==2) %>%
+  select(sim, meshRes, liceSpeedF, ID, x, y, density) %>%
+  st_as_sf(coords=c("x", "y"), crs=27700) %>%
+  st_join(mesh.sf %>% filter(meshParticle=="Beyond Linnhe") %>% select(-meshParticle)) %>%
+  st_drop_geometry() %>%
+  group_by(sim, meshRes, liceSpeedF, i) %>%
+  summarise(part_density=sum(density), N=n(), vol_elem=first(vol_elem)) %>%
+  ungroup %>%
+  mutate(dens_m3=part_density/vol_elem,
+         ln_densm3=log(dens_m3),
+         lnDens_m3=log(part_density)/vol_elem) %>%
+  inner_join(mesh.sf %>% filter(meshParticle=="Beyond Linnhe") %>% select(i, geom), .)
+st_write(dens.sf, glue("temp/density_allZ_init{initDensity}.gpkg"), append=F)
+
+p <- ggplot(dens.sf) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=ln_densm3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density_allZ_map_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(mesh.fp)) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=ln_densm3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density_allZ_map_linnhe_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(data=mesh.fp %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(aes(fill=ln_densm3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density_allZ_map_etive_site.png"), p, width=9, height=5, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(corran)) +
+  geom_sf(data=mesh.fp %>% st_crop(corran)) +
+  geom_sf(aes(fill=ln_densm3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density_allZ_map_corran_site.png"), p, width=9, height=6, dpi=300)
+
+
+p <- ggplot(dens.sf) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=lnDens_m3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice)/m"^3), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density2_allZ_map_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(mesh.fp)) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=lnDens_m3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice)/m"^3), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density2_allZ_map_linnhe_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(data=mesh.fp %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(aes(fill=lnDens_m3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice)/m"^3), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density2_allZ_map_etive_site.png"), p, width=9, height=5, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(corran)) +
+  geom_sf(data=mesh.fp %>% st_crop(corran)) +
+  geom_sf(aes(fill=lnDens_m3), colour=NA) +
+  scale_fill_viridis_c(expression("ln(lice)/m"^3), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density2_allZ_map_corran_site.png"), p, width=9, height=6, dpi=300)
+
+
+p <- ggplot(dens.sf) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=log(N/vol_elem)), colour=NA) +
+  scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density3_allZ_map_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(mesh.fp)) +
+  geom_sf(data=mesh.fp) +
+  geom_sf(aes(fill=log(N/vol_elem)), colour=NA) +
+  scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density3_allZ_map_linnhe_site.png"), p, width=9, height=8, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(data=mesh.fp %>% st_crop(st_bbox(unlist(etive.bbox), crs=27700))) +
+  geom_sf(aes(fill=log(N/vol_elem)), colour=NA) +
+  scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density3_allZ_map_etive_site.png"), p, width=9, height=5, dpi=300)
+p <- ggplot(dens.sf %>% st_crop(corran)) +
+  geom_sf(data=mesh.fp %>% st_crop(corran)) +
+  geom_sf(aes(fill=log(N/vol_elem)), colour=NA) +
+  scale_fill_viridis_c(expression("ln(particles/m"^3~")"), option="magma") +
+  facet_grid(liceSpeedF~meshRes) +
+  theme(axis.text=element_blank())
+ggsave(glue("figs/init{initDensity}/density3_allZ_map_corran_site.png"), p, width=9, height=6, dpi=300)
+
+rm(dens.sf); gc()
 
 
 
@@ -1249,7 +1601,7 @@ for(i in 1:nrow(sim_i)) {
 velocity.df <- loc.df %>%
   select(ID, timeCalculated, age, status, x, y, density, depth, meshParticle,
          sim, mesh, meshRes, elem) %>%
-  mutate(meshParticle=if_else(meshParticle==0, mesh, "WeStCOMS2")) %>%
+  # mutate(meshParticle=if_else(meshParticle==0, mesh, "WeStCOMS2")) %>%
   arrange(sim, timeCalculated, ID) %>%
   group_by(ID, sim) %>%
   mutate(x_m1=lag(x), 
@@ -1261,16 +1613,16 @@ velocity.df <- loc.df %>%
          dz=depth-depth_m1,
          dXY=sqrt(dx^2 + dy^2),
          bearing=atan2(dy, dx)) %>%
-  filter(age>=12 & status != 66) %>%
+  filter(status==2 & meshParticle!="Beyond Linnhe") %>%
   left_join(., sim_i %>% select(sim, mesh, liceSpeedF)) %>%
   left_join(., mesh.sf %>% st_drop_geometry() %>% 
               select(i, mesh, bearing) %>% 
               rename(meshParticle=mesh, elem=i, lochDir=bearing),
             by=c("meshParticle", "elem")) %>%
-  mutate(downloch=cos(lochDir-bearing)) %>% # -1: uploch, 1: downloch
+  mutate(uploch=cos(lochDir-bearing)) %>% # -1: uploch, 1: uploch
   st_as_sf(coords=c("x", "y"), crs=27700, remove=F) %>%
   st_join(mesh.sf %>% filter(mesh=="WeStCOMS2") %>% 
-            select(i, depth) %>% rename(elem_WC=i, meshDepth=depth)) %>%
+            select(i, depth_elem) %>% rename(elem_WC=i, meshDepth=depth_elem)) %>%
   st_drop_geometry() %>% 
   filter(complete.cases(.))
 
@@ -1284,9 +1636,9 @@ velocity.df <- loc.df %>%
 # 
 # velocity.df %>%
 #   filter(ID %% 500 == 0) %>%
-#   ggplot(aes(x, y, colour=downloch)) +
+#   ggplot(aes(x, y, colour=uploch)) +
 #   geom_point() +
-#   col_downloch +
+#   col_uploch +
 #   facet_wrap(~hour(timeCalculated), ncol=6)
 
 
@@ -1294,18 +1646,18 @@ velocity.df <- loc.df %>%
 # compare across depths: absolute, or relative to meshDepth
 # velocity.df %>%
 #   mutate(depthCat=if_else(depth < 20, round(depth), 20)) %>%
-#   ggplot(aes(downloch, colour=depthCat, group=depthCat)) +
+#   ggplot(aes(uploch, colour=depthCat, group=depthCat)) +
 #   geom_density() + 
 #   scale_colour_viridis_c(direction=-1) +
 #   facet_grid(~sim)
 # velocity.df %>%
 #   mutate(depthCat=if_else(depth<=5, "<= 5m", "> 5m")) %>%
-#   ggplot(aes(downloch, colour=depthCat, group=depthCat)) +
+#   ggplot(aes(uploch, colour=depthCat, group=depthCat)) +
 #   geom_density() + 
 #   facet_grid(~sim)
 # velocity.df %>%
 #   mutate(depthCat=if_else(depth<=5, "<= 5m", "> 5m")) %>%
-#   ggplot(aes(downloch, colour=hour(timeCalculated), 
+#   ggplot(aes(uploch, colour=hour(timeCalculated), 
 #              group=hour(timeCalculated))) +
 #   geom_density() + 
 #   col_hour +
@@ -1318,8 +1670,8 @@ velocity.df <- loc.df %>%
 #   mutate(depthCat=if_else(depth_m1<=5, "<= 5m", "> 5m")) %>%
 #   ggplot() +
 #   geom_sf(data=mesh.fp, fill=NA, colour="grey30") +
-#   geom_path(aes(x, y, group=ID, colour=downloch), alpha=0.25, size=0.1) + 
-#   col_downloch +
+#   geom_path(aes(x, y, group=ID, colour=uploch), alpha=0.25, size=0.1) + 
+#   col_uploch +
 #   facet_wrap(~depthCat) +
 #   ggtitle("High resolution, 1h, medium lice speed")
 # ggsave(glue("figs/init{initDensity}/direction_map_sim4_site.png"), p, width=8, height=5, dpi=300)
@@ -1330,18 +1682,18 @@ velocity.df <- loc.df %>%
 #   mutate(depthCat=if_else(depth_m1<=5, "<= 5m", "> 5m")) %>%
 #   ggplot() +
 #   geom_sf(data=mesh.fp, fill=NA, colour="grey30") +
-#   geom_path(aes(x, y, group=ID, colour=downloch), alpha=0.25, size=0.1) + 
-#   col_downloch +
+#   geom_path(aes(x, y, group=ID, colour=uploch), alpha=0.25, size=0.1) + 
+#   col_uploch +
 #   facet_wrap(~depthCat) +
 #   ggtitle("High resolution, 1h, passive lice")
 # ggsave(glue("figs/init{initDensity}/direction_map_sim3_site.png"), p, width=8, height=5, dpi=300)
 
 p <- velocity.df %>%
-  filter(ID %% 2000 == 0) %>%
+  filter(ID %% 1000 == 0) %>%
   ggplot() +
   geom_sf(data=mesh.fp, fill=NA, colour="grey30") +
-  geom_path(aes(x, y, group=ID, colour=downloch), alpha=0.25, size=0.1) + 
-  col_downloch +
+  geom_path(aes(x, y, group=ID, colour=uploch), alpha=0.25, size=0.5) + 
+  col_uploch +
   facet_grid(meshRes~liceSpeedF)
 ggsave(glue("figs/init{initDensity}/direction_map_site.png"), p, width=9, height=9, dpi=300)
 
@@ -1351,15 +1703,15 @@ meshDir.sum <- velocity.df %>%
   group_by(mesh, meshRes, liceSpeedF, elem_WC) %>%
   summarise(N=n(), 
             totDens=sum(density), 
-            prUploch=mean(downloch<0)) %>%
+            prUploch=mean(uploch<0)) %>%
   ungroup %>%
   inner_join(mesh.sf %>% 
                filter(mesh=="WeStCOMS2") %>% 
-               select(i, depth, area) %>% 
+               select(i, vol_elem, vol30_elem) %>% 
                rename(elem_WC=i), .) %>%
   mutate(N=replace_na(N, 0),
-         lnDens_m3=log(totDens/(area*depth)),
-         lnN_m3=log(N/(area*depth)))
+         lnDens_m3=log(totDens/vol_elem),
+         lnN_m3=log(N/vol_elem))
 
 p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium")) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
@@ -1384,7 +1736,8 @@ meshDiff.df <- meshDir.sum %>%
          lnN_diff=lnN_m3-lnN_ref,
          totDens_diff=totDens-totDens_ref,
          prUp_diff=prUploch-prUp_ref,
-         lnDens_diff=lnDens_m3-lnDens_ref)
+         lnDens_diff=lnDens_m3-lnDens_ref) %>%
+  filter(elem_WC %in% filter(mesh.sf, lochRegionF!="Beyond Linnhe" & mesh=="WeStCOMS2")$i)
 p <- meshDiff.df %>%
   ggplot() +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
@@ -1409,13 +1762,13 @@ ggsave(glue("figs/init{initDensity}/prUploch_diff_map_site.png"), p, width=11, h
 p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium") %>% filter(N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch)) + 
-  fill_downloch +
+  fill_uploch +
   facet_grid(.~meshRes)
 ggsave(glue("figs/init{initDensity}/prUploch_map_site.png"), p, width=13, height=5, dpi=300)
 p <- ggplot(meshDir.sum %>% filter(liceSpeedF=="Medium") %>% filter(N>10)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch, alpha=lnDens_m3)) + 
-  fill_downloch +
+  fill_uploch +
   facet_grid(.~meshRes)
 ggsave(glue("figs/init{initDensity}/prUploch_map_ALT_site.png"), p, width=13, height=5, dpi=300)
 
@@ -1430,7 +1783,7 @@ meshDir.deep <- left_join(mesh.sf,
                             group_by(mesh, meshRes, elem, deep) %>%
                             summarise(N=n(),
                                       totDens=sum(density),
-                                      prUploch=mean(downloch<0)) %>%
+                                      prUploch=mean(uploch<0)) %>%
                             ungroup %>% rename(i=elem),
                           by=c("mesh", "i")) %>%
   mutate(N=replace_na(N, 0),
@@ -1450,13 +1803,13 @@ ggsave(glue("figs/init{initDensity}/density_map_depthStrat_site.png"), p, width=
 p <- ggplot(meshDir.deep %>% filter(!is.na(deep), N>3)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch)) + 
-  fill_downloch +
+  fill_uploch +
   facet_grid(deep~meshRes)
 ggsave(glue("figs/init{initDensity}/prUploch_map_depthStrat_site.png"), p, width=11, height=14, dpi=300)
 p <- ggplot(meshDir.deep %>% filter(!is.na(deep), N>3)) +
   geom_sf(data=mesh.fp, colour="grey30", fill=NA) +
   geom_sf(colour=NA, aes(fill=prUploch, alpha=lnDens_m3)) + 
-  fill_downloch +
+  fill_uploch +
   facet_grid(deep~meshRes)
 ggsave(glue("figs/init{initDensity}/prUploch_map_depthStrat_ALT_site.png"), p, width=11, height=14, dpi=300)
 
