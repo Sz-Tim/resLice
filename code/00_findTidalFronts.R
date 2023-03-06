@@ -15,7 +15,17 @@ dirs <- list(
   WeStCOMS2_5min="D:/hydroOut/WeStCOMS2/Archive_5min/orig"
 )
 mesh.fp <- st_read("data/linnhe_mesh_footprint.gpkg")
-site.i <- read_csv("data/fishFarmSites_meshLocs.csv")
+site.i <- read_csv("data/fishFarmSites_meshLocs.csv") %>%
+  left_join(., 
+            list(linnhe7=st_read(glue("{dirs$mesh}/linnhe_mesh.gpkg")) %>%
+                   mutate(mesh="linnhe7"),
+                 westcoms2=st_read(glue("{dirs$mesh}/WeStCOMS2_linnhe_mesh.gpkg")) %>%
+                   mutate(mesh="WeStCOMS2")) %>%
+              do.call('rbind', .) %>%
+              st_drop_geometry() %>%
+              select(i, mesh, lochRegion, mainLoch) %>%
+              rename(elem=i) %>%
+              full_join(., read_csv("data/loch_regions.csv"), by="lochRegion"))
 
 
 par.df <- expand_grid(mesh=c("WeStCOMS2", "linnhe"),
@@ -23,7 +33,7 @@ par.df <- expand_grid(mesh=c("WeStCOMS2", "linnhe"),
   # Delta(salinity) across timesteps & buffer on FVCOM mesh nodes to define fronts
   # NB: This was subjective through trial & error...
   mutate(thresh_deltaSal=case_when(mesh=="WeStCOMS2" & tRes=="1h" ~ -2.25,
-                                   mesh=="WeStCOMS2" & tRes=="5min" ~ -0.7,
+                                   mesh=="WeStCOMS2" & tRes=="5min" ~ -0.75,
                                    mesh=="linnhe" & tRes=="1h" ~ -2.25,
                                    mesh=="linnhe" & tRes=="5min" ~ -1),
          nodeBuffer=if_else(mesh=="WeStCOMS2", 500, 500), 
@@ -54,11 +64,12 @@ for(j in 1:nrow(par.df)) {
     # Fish farm site profiles
     for(i in 1:nrow(site.j)) {
       nodes.ij <- unlist(select(site.j, starts_with("trinode"))[i,])
+      elem.ij <- site.j$elem[i]
       salProf.mx <- dir(dirs[[paste(par.df$mesh[j], par.df$tRes[j], sep="_")]], full.names=T) %>%
         map(~ncvar_get(nc_open(.x), "salinity")[nodes.ij,,]) %>%
         map(~apply(.x, 2:3, mean, na.rm=T)) %>%
         do.call('cbind', .)
-      salProf.df <- expand_grid(time=1:ncol(salProf.mx), sigLayer=sigLay) %>% 
+      salProf.df <- expand_grid(time=1:ncol(salProf.mx), sigLayer=sigLay) %>%
         mutate(salinity=c(salProf.mx),
                timeStart=as_datetime("2021-11-01 00:00:00") + (time-1)*ifelse(par.df$tRes[j]=="1h", 60, 5)*60,
                timeEnd=timeStart + ifelse(par.df$tRes[j]=="1h", 60, 5)*60,
@@ -69,32 +80,95 @@ for(j in 1:nrow(par.df)) {
                depthBottom=site.j$depth[i]*sigLevBottom) %>%
         filter(timeEnd <= "2021-11-08 00:00:00")
       write_csv(salProf.df, glue("out/salinity_profile_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.csv"))
+      
+      tempProf.mx <- dir(dirs[[paste(par.df$mesh[j], par.df$tRes[j], sep="_")]], full.names=T) %>%
+        map(~ncvar_get(nc_open(.x), "temp")[nodes.ij,,]) %>%
+        map(~apply(.x, 2:3, mean, na.rm=T)) %>%
+        do.call('cbind', .)
+      tempProf.df <- expand_grid(time=1:ncol(tempProf.mx), sigLayer=sigLay) %>%
+        mutate(temperature=c(tempProf.mx),
+               timeStart=as_datetime("2021-11-01 00:00:00") + (time-1)*ifelse(par.df$tRes[j]=="1h", 60, 5)*60,
+               timeEnd=timeStart + ifelse(par.df$tRes[j]=="1h", 60, 5)*60,
+               depth=site.j$depth[i]*sigLayer,
+               sigLevTop=rep(sigLev[1:length(sigLay)], ncol(tempProf.mx)),
+               sigLevBottom=rep(sigLev[2:length(sigLev)], ncol(tempProf.mx)),
+               depthTop=site.j$depth[i]*sigLevTop,
+               depthBottom=site.j$depth[i]*sigLevBottom) %>%
+        filter(timeEnd <= "2021-11-08 00:00:00")
+      write_csv(tempProf.df, glue("out/temperature_profile_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.csv"))
+
+      uProf.mx <- dir(dirs[[paste(par.df$mesh[j], par.df$tRes[j], sep="_")]], full.names=T) %>%
+        map(~ncvar_get(nc_open(.x), "u")[elem.ij,,]) %>%
+        do.call('cbind', .)
+      vProf.mx <- dir(dirs[[paste(par.df$mesh[j], par.df$tRes[j], sep="_")]], full.names=T) %>%
+        map(~ncvar_get(nc_open(.x), "v")[elem.ij,,]) %>%
+        do.call('cbind', .)
+      uvProf.mx <- uProf.mx * cos(site.j$bearing[i]) + vProf.mx * sin(site.j$bearing[i])
+      uvProf.df <- expand_grid(time=1:ncol(uvProf.mx), sigLayer=sigLay) %>%
+        mutate(uploch_velocity=c(uvProf.mx),
+               timeStart=as_datetime("2021-11-01 00:00:00") + (time-1)*ifelse(par.df$tRes[j]=="1h", 60, 5)*60,
+               timeEnd=timeStart + ifelse(par.df$tRes[j]=="1h", 60, 5)*60,
+               depth=site.j$depth[i]*sigLayer,
+               sigLevTop=rep(sigLev[1:length(sigLay)], ncol(uvProf.mx)),
+               sigLevBottom=rep(sigLev[2:length(sigLev)], ncol(uvProf.mx)),
+               depthTop=site.j$depth[i]*sigLevTop,
+               depthBottom=site.j$depth[i]*sigLevBottom) %>%
+        filter(timeEnd <= "2021-11-08 00:00:00")
+      write_csv(uvProf.df, glue("out/uv_profile_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.csv"))
+
+      wwProf.mx <- dir(dirs[[paste(par.df$mesh[j], par.df$tRes[j], sep="_")]], full.names=T) %>%
+        map(~ncvar_get(nc_open(.x), "ww")[elem.ij,,]) %>%
+        do.call('cbind', .)
+      wwProf.df <- expand_grid(time=1:ncol(wwProf.mx), sigLayer=sigLay) %>%
+        mutate(upward_velocity=c(wwProf.mx),
+               timeStart=as_datetime("2021-11-01 00:00:00") + (time-1)*ifelse(par.df$tRes[j]=="1h", 60, 5)*60,
+               timeEnd=timeStart + ifelse(par.df$tRes[j]=="1h", 60, 5)*60,
+               depth=site.j$depth[i]*sigLayer,
+               sigLevTop=rep(sigLev[1:length(sigLay)], ncol(wwProf.mx)),
+               sigLevBottom=rep(sigLev[2:length(sigLev)], ncol(wwProf.mx)),
+               depthTop=site.j$depth[i]*sigLevTop,
+               depthBottom=site.j$depth[i]*sigLevBottom) %>%
+        filter(timeEnd <= "2021-11-08 00:00:00")
+      write_csv(wwProf.df, glue("out/ww_profile_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.csv"))
+
       p <- ggplot(salProf.df, aes(fill=salinity)) +
-        geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) + 
+        geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
         scale_fill_distiller(palette="Blues", direction=1, limits=c(10, 33)) +
         scale_y_continuous("Depth (m)") +
         scale_x_datetime("")
       ggsave(glue("figs/mesh/salinity_profile_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.png"), p,
              width=7, height=5, dpi=300)
-      # p <- salProf.df %>%
-      #   filter(timeEnd <= "2021-11-03 00:00:00") %>%
-      #   ggplot(aes(fill=salinity)) +
-      #   geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) + 
-      #   scale_fill_distiller(palette="Blues", direction=1, limits=c(10, 33)) +
-      #   scale_y_continuous("Depth (m)") +
-      #   scale_x_datetime("")
-      # ggsave(glue("figs/mesh/salinity_profile_2days_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.png"), p,
-      #        width=7, height=5, dpi=300)
+      p <- ggplot(tempProf.df, aes(fill=temperature)) +
+        geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+        scale_fill_viridis_c(option="plasma") +
+        scale_y_continuous("Depth (m)") +
+        scale_x_datetime("")
+      ggsave(glue("figs/mesh/temperature_profile_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.png"), p,
+             width=7, height=5, dpi=300)
+      p <- ggplot(uvProf.df, aes(fill=uploch_velocity)) +
+        geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+        scale_fill_gradient2("Uploch velocity\n(m/s)") +
+        scale_y_continuous("Depth (m)") +
+        scale_x_datetime("")
+      ggsave(glue("figs/mesh/uv_profile_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.png"), p,
+             width=7, height=5, dpi=300)
+      p <- ggplot(wwProf.df, aes(fill=upward_velocity)) +
+        geom_rect(aes(xmin=timeStart, xmax=timeEnd, ymin=depthBottom, ymax=depthTop)) +
+        scale_fill_gradient2("Upward velocity\n(m/s)", low="#762a83", mid="grey95", high="#1b7837") +
+        scale_y_continuous("Depth (m)") +
+        scale_x_datetime("")
+      ggsave(glue("figs/mesh/ww_profile_{site.j$site[i]}_{par.df$mesh[j]}_{par.df$tRes[j]}.png"), p,
+             width=7, height=5, dpi=300)
     }
     
     # Find extreme salinity change across each time step
-    salSurf.mx <- map(dir(dirs[[paste(par.df$mesh[j], par.df$tRes[j], sep="_")]], full.names=T), 
+    salSurf.mx <- map(dir(dirs[[paste(par.df$mesh[j], par.df$tRes[j], sep="_")]], full.names=T),
                       ~ncvar_get(nc_open(.x), "salinity")[,1,]) %>%
       do.call('cbind', .)
     deltaSal <- salSurf.mx[,2:ncol(salSurf.mx)] - salSurf.mx[,1:(ncol(salSurf.mx)-1)]
     extremes.i <- map(1:ncol(deltaSal), ~which(deltaSal[,.x] <= par.df$thresh_deltaSal[j] &
                                                  deltaSal[,.x] < quantile(deltaSal[,.x], 0.01)))
-    
+
     # Buffer extreme nodes to a single buffered polygon per time step
     extremes.sf <- map_dfr(1:length(extremes.i),
                            ~mesh.sf[extremes.i[[.x]],] %>%
@@ -110,8 +184,9 @@ for(j in 1:nrow(par.df)) {
       arrange(desc(area)) %>%
       slice_head(n=1) %>%
       select(-area) %>%
-      mutate(timeStart=as_datetime("2021-11-01 00:00:00") + (trans-1)*ifelse(par.df$tRes[j]=="1h", 60, 5)*60) %>%
-      st_write(glue("data/salinityPulse_{par.df$mesh[j]}_{par.df$tRes[j]}.gpkg"), append=FALSE)  
+      mutate(timeStart=as_datetime("2021-11-01 00:00:00") + (trans-1)*ifelse(par.df$tRes[j]=="1h", 60, 5)*60)
+    extremes.sf %>%
+      st_write(glue("data/salinityPulse_{par.df$mesh[j]}_{par.df$tRes[j]}.gpkg"), append=FALSE)
   }
   if(make_gif) {
     extremes.sf <- st_read(glue("data/salinityPulse_{par.df$mesh[j]}_{par.df$tRes[j]}.gpkg"))
@@ -138,7 +213,7 @@ for(j in 1:nrow(par.df)) {
 }
 
 # 1h animations
-extremes.sf <- map_dfr(unique(par.df$mesh), 
+extremes.sf <- map_dfr(unique(par.df$mesh),
                        ~st_read(glue("data/salinityPulse_{.x}_1h.gpkg")) %>%
                          mutate(mesh=.x))
 time.df <- tibble(trans=1:max(extremes.sf$trans)) %>%
@@ -159,7 +234,7 @@ anim_save(glue("figs/mesh/tidal_pulse_1h.gif"),
 
 
 # 5min animations
-extremes.sf <- map_dfr(unique(par.df$mesh), 
+extremes.sf <- map_dfr(unique(par.df$mesh),
                        ~st_read(glue("data/salinityPulse_{.x}_5min.gpkg")) %>%
                          mutate(mesh=.x))
 time.df <- tibble(trans=1:max(extremes.sf$trans)) %>%
